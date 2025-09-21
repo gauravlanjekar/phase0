@@ -3,9 +3,9 @@ version = 0.1
 [default.deploy]
 [default.deploy.parameters]
 stack_name = "mission-admin-stack"
-s3_bucket = ""
+s3_bucket = "phase0-hackathon"
 s3_prefix = "mission-admin"
-region = "us-east-1"
+region = "eu-central-1"
 capabilities = "CAPABILITY_IAM"
 parameter_overrides = "Environment=dev"
 image_repositories = []

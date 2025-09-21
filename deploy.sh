@@ -5,7 +5,7 @@
 set -e
 
 STACK_NAME="mission-admin-stack"
-REGION="us-east-1"
+REGION="eu-central-1"
 ENVIRONMENT="dev"
 
 echo "🚀 Deploying Mission Admin to AWS..."

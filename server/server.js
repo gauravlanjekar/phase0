@@ -43,19 +43,34 @@ app.delete('/api/missions/:id', (req, res) => {
 // Mission tab data endpoints
 app.get('/api/missions/:id/tabs/:tabIndex', (req, res) => {
   const { id, tabIndex } = req.params;
-  const data = missionData[id]?.tabs[tabIndex] || { notes: '', status: 'Not Started' };
+  let data = missionData[id]?.tabs[tabIndex] || { notes: '', status: 'Not Started' };
+  
+  // Initialize objectives for tab 0 (Mission Objectives)
+  if (tabIndex === '0' && !data.objectives) {
+    data.objectives = [
+      { id: 'obj1', text: '' },
+      { id: 'obj2', text: '' },
+      { id: 'obj3', text: '' }
+    ];
+  }
+  
+  // Initialize requirements for tab 1 (Mission Requirements)
+  if (tabIndex === '1' && !data.requirements) {
+    data.requirements = createDefaultRequirements();
+  }
+  
   res.json(data);
 });
 
 app.put('/api/missions/:id/tabs/:tabIndex', (req, res) => {
   const { id, tabIndex } = req.params;
-  const { notes, status } = req.body;
+  const data = req.body;
   
   if (!missionData[id]) {
     missionData[id] = { tabs: {} };
   }
   
-  missionData[id].tabs[tabIndex] = { notes, status };
+  missionData[id].tabs[tabIndex] = data;
   res.json(missionData[id].tabs[tabIndex]);
 });
 
@@ -65,6 +80,34 @@ app.post('/api/missions/:id/chat', (req, res) => {
   const response = `I understand your request about: "${message}". How can I help you further with this mission?`;
   res.json({ response });
 });
+
+function createDefaultRequirements() {
+  const categories = [
+    'Orbit Selection',
+    'Payload Definition', 
+    'Spacecraft Bus & Subsystems',
+    'Ground Segment & Data System',
+    'Trade Studies & Early Costing',
+    'Concept of Operations (ConOps)',
+    'Mission Concept Review (MCR)'
+  ];
+  
+  const requirements = [];
+  categories.forEach((category, catIndex) => {
+    for (let i = 1; i <= 8; i++) {
+      requirements.push({
+        id: `req_${catIndex + 1}_${i}`,
+        description: '',
+        unit: '',
+        met: false,
+        comment: '',
+        linkedObjective: '',
+        category
+      });
+    }
+  });
+  return requirements;
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
