@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Stack, Group, Button, Card, Text, Badge, ActionIcon, Title, Box, Grid, Collapse, Progress, NumberInput, Modal, TextInput, Textarea, Select, Tabs } from '@mantine/core';
+import { Stack, Group, Button, Card, Text, Badge, ActionIcon, Title, Box, Grid, Collapse, Progress, NumberInput, Modal, TextInput, Textarea, Select, Tabs, Loader } from '@mantine/core';
 import { IconPlus, IconTrash, IconWand, IconRocket, IconChevronDown, IconChevronUp, IconSatellite, IconBolt, IconWeight, IconCurrencyDollar, IconEdit, IconEye, IconWorld, IconPlanet } from '@tabler/icons-react';
 import { DesignSolution, Objective, Requirement, Constraint, Component, ComponentType, Orbit, GroundStation } from '../types/models';
 import { missionAPI } from '../services/api';
@@ -11,6 +11,7 @@ interface DesignSolutionsTabProps {
   requirements?: Requirement[];
   constraints?: Constraint[];
   onSolutionsChange: (solutions: DesignSolution[]) => void;
+  onRefresh?: () => void;
 }
 
 const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
@@ -19,9 +20,11 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
   objectives,
   requirements,
   constraints,
-  onSolutionsChange
+  onSolutionsChange,
+  onRefresh
 }) => {
   const [expandedSolutions, setExpandedSolutions] = useState<Set<string>>(new Set());
+  const [expandedSpacecraft, setExpandedSpacecraft] = useState<Set<string>>(new Set());
   const [editingSolution, setEditingSolution] = useState<DesignSolution | null>(null);
   const [editingComponent, setEditingComponent] = useState<{ component: Component; solutionId: string } | null>(null);
   const [editingOrbit, setEditingOrbit] = useState<{ orbit: Orbit; solutionId: string } | null>(null);
@@ -36,6 +39,16 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
       newExpanded.add(solutionId);
     }
     setExpandedSolutions(newExpanded);
+  };
+
+  const toggleSpacecraftExpanded = (spacecraftId: string) => {
+    const newExpanded = new Set(expandedSpacecraft);
+    if (newExpanded.has(spacecraftId)) {
+      newExpanded.delete(spacecraftId);
+    } else {
+      newExpanded.add(spacecraftId);
+    }
+    setExpandedSpacecraft(newExpanded);
   };
 
   const deleteSolution = (id: string) => {
@@ -75,12 +88,12 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
       if (sol.id === editingComponent.solutionId && sol.spacecraft) {
         return {
           ...sol,
-          spacecraft: {
-            ...sol.spacecraft,
-            components: sol.spacecraft.components.map(comp => 
+          spacecraft: sol.spacecraft.map(sc => ({
+            ...sc,
+            components: sc.components.map(comp => 
               comp.id === editingComponent.component.id ? editingComponent.component : comp
             )
-          }
+          }))
         };
       }
       return sol;
@@ -115,14 +128,20 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
     setEditingGroundStation(null);
   };
 
+  const [isGenerating, setIsGenerating] = useState(false);
+
   const generateSolutions = async () => {
+    setIsGenerating(true);
     try {
       const response = await missionAPI.generateDesignSolutions(missionId, objectives || [], requirements || [], constraints || []);
       if (response.success && Array.isArray(response.designSolutions)) {
         onSolutionsChange([...(solutions || []), ...response.designSolutions]);
+        onRefresh?.();
       }
     } catch (error) {
       console.error('Failed to generate solutions:', error);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -137,15 +156,21 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
   };
 
   const calculateMetrics = (solution: DesignSolution) => {
-    if (!solution.spacecraft?.components) return { mass: 0, power: 0, cost: 0, reliability: 0 };
+    if (!solution.spacecraft || solution.spacecraft.length === 0) return { mass: 0, power: 0, cost: 0, reliability: 0 };
     
-    const mass = solution.spacecraft.components.reduce((sum, c) => sum + (c.mass || 0), 0);
-    const powerGen = solution.spacecraft.components.reduce((sum, c) => sum + (c.powerGenerated || 0), 0);
-    const powerCons = solution.spacecraft.components.reduce((sum, c) => sum + (c.powerConsumed || 0), 0);
-    const cost = solution.spacecraft.components.reduce((sum, c) => sum + (c.cost || 0), 0);
-    const reliability = solution.spacecraft.components.reduce((prod, c) => prod * (c.reliability || 1), 1) * 100;
+    let totalMass = 0, totalPowerGen = 0, totalPowerCons = 0, totalCost = 0, totalReliability = 1;
     
-    return { mass, power: powerGen - powerCons, cost, reliability };
+    solution.spacecraft.forEach(sc => {
+      if (sc.components) {
+        totalMass += sc.components.reduce((sum, c) => sum + (c.mass || 0), 0);
+        totalPowerGen += sc.components.reduce((sum, c) => sum + (c.powerGenerated || 0), 0);
+        totalPowerCons += sc.components.reduce((sum, c) => sum + (c.powerConsumed || 0), 0);
+        totalCost += sc.components.reduce((sum, c) => sum + (c.cost || 0), 0);
+        totalReliability *= sc.components.reduce((prod, c) => prod * (c.reliability || 1), 1);
+      }
+    });
+    
+    return { mass: totalMass, power: totalPowerGen - totalPowerCons, cost: totalCost, reliability: totalReliability * 100 };
   };
 
   return (
@@ -162,13 +187,18 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
         </Box>
         <Group>
           <Button 
-            leftSection={<IconWand size={16} />} 
-            variant="light" 
-            color="violet" 
+            leftSection={isGenerating ? <Loader size={18} color="white" /> : <IconWand size={18} />} 
+            variant="gradient"
+            gradient={{ from: '#667eea', to: '#764ba2' }}
             onClick={generateSolutions}
-            size="md"
+            disabled={isGenerating}
+            size="lg"
+            style={{
+              boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(102, 126, 234, 0.4)',
+              transform: isGenerating ? 'none' : 'translateY(-1px)'
+            }}
           >
-            AI Generate
+            {isGenerating ? 'Generating Solutions...' : '✨ AI Generate'}
           </Button>
           <Button 
             leftSection={<IconPlus size={16} />} 
@@ -207,9 +237,9 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       <Badge color={getStatusColor(solution.status)} size="sm">
                         {solution.status?.replace('_', ' ').toUpperCase() || 'UNKNOWN'}
                       </Badge>
-                      {solution.spacecraft && (
+                      {solution.spacecraft && solution.spacecraft.length > 0 && (
                         <Badge color="cyan" size="sm" leftSection={<IconSatellite size={12} />}>
-                          {(solution.spacecraft.components || []).length} components
+                          {solution.spacecraft.length} spacecraft
                         </Badge>
                       )}
                     </Group>
@@ -319,12 +349,35 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       </Tabs.List>
 
                       <Tabs.Panel value="spacecraft">
-                        {solution.spacecraft && (
+                        {solution.spacecraft && solution.spacecraft.length > 0 && (
                           <Box>
-                            <Title order={4} c="white" mb="md">Spacecraft: {solution.spacecraft.name}</Title>
-                            <Stack gap="md">
-                              {(solution.spacecraft.components || []).map((component) => (
-                                <Card key={component.id} className="glass-card-dark" p="md" radius="md">
+                            <Title order={4} c="white" mb="md">Spacecraft ({solution.spacecraft.length})</Title>
+                            <Stack gap="lg">
+                              {solution.spacecraft.map((spacecraft) => {
+                                const isSpacecraftExpanded = expandedSpacecraft.has(spacecraft.id);
+                                return (
+                                <Card key={spacecraft.id} className="glass-card" p="md" radius="md">
+                                  <Stack gap="md">
+                                    <Group justify="space-between">
+                                      <Group align="center" gap="sm">
+                                        <Title order={5} c="white">{spacecraft.name}</Title>
+                                        <Badge color="violet" size="sm">
+                                          {(spacecraft.components || []).length} components
+                                        </Badge>
+                                      </Group>
+                                      <ActionIcon 
+                                        variant="subtle" 
+                                        onClick={() => toggleSpacecraftExpanded(spacecraft.id)}
+                                        size="sm"
+                                        c="white"
+                                      >
+                                        {isSpacecraftExpanded ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                                      </ActionIcon>
+                                    </Group>
+                                    <Collapse in={isSpacecraftExpanded}>
+                                      <Stack gap="md">
+                                        {(spacecraft.components || []).map((component) => (
+                                        <Card key={component.id} className="glass-card-dark" p="md" radius="md">
                                   <Stack gap="md">
                                     <Group justify="space-between">
                                       <Box>
@@ -475,7 +528,13 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                                     )}
                                   </Stack>
                                 </Card>
-                              ))}
+                                        ))}
+                                      </Stack>
+                                    </Collapse>
+                                  </Stack>
+                                </Card>
+                                );
+                              })}
                             </Stack>
                           </Box>
                         )}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, Box, Modal, Loader } from '@mantine/core';
-import { IconPlus, IconTrash, IconWand, IconTarget, IconUsers, IconNotes, IconEdit } from '@tabler/icons-react';
+import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, Box, Modal, Loader, Collapse, Grid } from '@mantine/core';
+import { IconPlus, IconTrash, IconWand, IconTarget, IconUsers, IconNotes, IconEdit, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { Objective, Priority, createObjective } from '../types/models';
 import { missionAPI } from '../services/api';
 
@@ -8,20 +8,25 @@ interface ObjectivesTabProps {
   missionId: string;
   objectives?: Objective[];
   onObjectivesChange: (objectives: Objective[]) => void;
+  onRefresh?: () => void;
 }
 
 const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
   missionId,
   objectives,
-  onObjectivesChange
+  onObjectivesChange,
+  onRefresh
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingObjective, setEditingObjective] = useState<Objective | null>(null);
+  const [expandedObjectives, setExpandedObjectives] = useState<Set<string>>(new Set());
   const [newObjective, setNewObjective] = useState({
     title: '',
     description: '',
     priority: 'medium' as Priority,
-    category: 'earth_observation'
+    category: 'earth_observation',
+    stakeholders: [] as string[],
+    notes: ''
   });
 
   const addObjective = () => {
@@ -34,9 +39,11 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
       newObjective.priority
     );
     objective.category = newObjective.category;
+    objective.stakeholders = newObjective.stakeholders;
+    objective.notes = newObjective.notes;
     
     onObjectivesChange([...(objectives || []), objective]);
-    setNewObjective({ title: '', description: '', priority: 'medium', category: 'earth_observation' });
+    setNewObjective({ title: '', description: '', priority: 'medium', category: 'earth_observation', stakeholders: [], notes: '' });
     setIsAdding(false);
   };
 
@@ -65,6 +72,7 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
       const response = await missionAPI.generateObjectives(missionId, 'Mission brief');
       if (response.success && Array.isArray(response.objectives)) {
         onObjectivesChange([...(objectives || []), ...response.objectives]);
+        onRefresh?.();
       }
     } catch (error) {
       console.error('Failed to generate objectives:', error);
@@ -82,6 +90,16 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
     }
   };
 
+  const toggleExpanded = (objectiveId: string) => {
+    const newExpanded = new Set(expandedObjectives);
+    if (newExpanded.has(objectiveId)) {
+      newExpanded.delete(objectiveId);
+    } else {
+      newExpanded.add(objectiveId);
+    }
+    setExpandedObjectives(newExpanded);
+  };
+
   return (
     <Stack gap="xl">
       <Group justify="space-between" align="center">
@@ -96,14 +114,18 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
         </Box>
         <Group>
           <Button 
-            leftSection={isGenerating ? <Loader size={16} /> : <IconWand size={16} />} 
-            variant="light" 
-            color="violet" 
+            leftSection={isGenerating ? <Loader size={18} color="white" /> : <IconWand size={18} />} 
+            variant="gradient"
+            gradient={{ from: '#667eea', to: '#764ba2' }}
             onClick={generateObjectives}
             disabled={isGenerating}
-            size="md"
+            size="lg"
+            style={{
+              boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(102, 126, 234, 0.4)',
+              transform: isGenerating ? 'none' : 'translateY(-1px)'
+            }}
           >
-            {isGenerating ? 'Generating...' : 'AI Generate'}
+            {isGenerating ? 'Generating Objectives...' : '✨ AI Generate'}
           </Button>
           <Button 
             leftSection={<IconPlus size={16} />} 
@@ -150,26 +172,56 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
                 label: { color: 'white', fontWeight: 500 }
               }}
             />
-            <Group grow>
-              <Select
-                label="Priority Level"
-                value={newObjective.priority}
-                onChange={(value: string | null) => setNewObjective({ ...newObjective, priority: (value as Priority) || 'medium' })}
-                data={[
-                  { value: 'low', label: '🟢 Low Priority' },
-                  { value: 'medium', label: '🟡 Medium Priority' },
-                  { value: 'high', label: '🔴 High Priority' }
-                ]}
-                styles={{
-                  input: {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    color: 'white'
-                  },
-                  label: { color: 'white', fontWeight: 500 }
-                }}
-              />
-            </Group>
+            <Select
+              label="Priority Level"
+              value={newObjective.priority}
+              onChange={(value: string | null) => setNewObjective({ ...newObjective, priority: (value as Priority) || 'medium' })}
+              data={[
+                { value: 'low', label: '🟢 Low Priority' },
+                { value: 'medium', label: '🟡 Medium Priority' },
+                { value: 'high', label: '🔴 High Priority' }
+              ]}
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
+            <Textarea
+              label="Stakeholders (one per line)"
+              value={newObjective.stakeholders.join('\n')}
+              onChange={(e) => setNewObjective({ 
+                ...newObjective, 
+                stakeholders: e.target.value.split('\n').filter(s => s.trim()) 
+              })}
+              rows={3}
+              placeholder="Enter stakeholders, one per line"
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
+            <Textarea
+              label="Notes"
+              value={newObjective.notes}
+              onChange={(e) => setNewObjective({ ...newObjective, notes: e.target.value })}
+              rows={3}
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
             <Group>
               <Button onClick={addObjective} variant="gradient" gradient={{ from: '#11998e', to: '#38ef7d' }}>
                 Save Objective
@@ -183,69 +235,130 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
       )}
 
       <Stack gap="md">
-        {(objectives || []).map((objective, index) => (
-          <Card key={objective.id} className="glass-card-dark floating-card" padding="xl" radius="lg">
-            <Group justify="space-between" align="flex-start">
-              <Stack gap="md" style={{ flex: 1 }}>
-                <Group align="center" gap="sm">
-                  <Badge size="sm" variant="light" color="blue">
-                    #{index + 1}
-                  </Badge>
-                  <Title order={4} c="white">{objective.title}</Title>
+        {(objectives || []).map((objective, index) => {
+          const isExpanded = expandedObjectives.has(objective.id);
+          
+          return (
+            <Card key={objective.id} className="glass-card-dark floating-card" padding="xl" radius="lg">
+              <Stack gap="md">
+                <Group justify="space-between" align="flex-start">
+                  <Stack gap="md" style={{ flex: 1 }}>
+                    <Group align="center" gap="sm">
+                      <Badge size="sm" variant="light" color="blue">
+                        #{index + 1}
+                      </Badge>
+                      <Title order={4} c="white">{objective.title}</Title>
+                    </Group>
+                    
+                    <Text c="rgba(255, 255, 255, 0.8)" size="sm" lineClamp={isExpanded ? undefined : 2}>
+                      {objective.description}
+                    </Text>
+                    
+                    <Group gap="xs">
+                      <Badge 
+                        color={getPriorityColor(objective.priority)} 
+                        size="sm"
+                        leftSection={
+                          objective.priority === 'high' ? '🔴' : 
+                          objective.priority === 'medium' ? '🟡' : '🟢'
+                        }
+                      >
+                        {objective.priority?.toUpperCase() || 'MEDIUM'}
+                      </Badge>
+                      <Badge color="cyan" size="sm" leftSection={<IconTarget size={12} />}>
+                        {objective.category?.replace('_', ' ') || 'general'}
+                      </Badge>
+                      {(objective.stakeholders && Array.isArray(objective.stakeholders) && objective.stakeholders.length > 0) && (
+                        <Badge color="grape" size="sm" leftSection={<IconUsers size={12} />}>
+                          {objective.stakeholders.length} stakeholders
+                        </Badge>
+                      )}
+                      {objective.notes && (
+                        <Badge color="orange" size="sm" leftSection={<IconNotes size={12} />}>
+                          Has notes
+                        </Badge>
+                      )}
+                    </Group>
+                  </Stack>
+                  
+                  <Group>
+                    <ActionIcon 
+                      color="blue" 
+                      variant="subtle" 
+                      onClick={() => editObjective(objective)}
+                      size="lg"
+                    >
+                      <IconEdit size={18} />
+                    </ActionIcon>
+                    <ActionIcon 
+                      variant="subtle" 
+                      onClick={() => toggleExpanded(objective.id)}
+                      size="lg"
+                      c="white"
+                    >
+                      {isExpanded ? <IconChevronUp size={18} /> : <IconChevronDown size={18} />}
+                    </ActionIcon>
+                    <ActionIcon 
+                      color="red" 
+                      variant="subtle" 
+                      onClick={() => deleteObjective(objective.id)}
+                      size="lg"
+                    >
+                      <IconTrash size={18} />
+                    </ActionIcon>
+                  </Group>
                 </Group>
-                
-                <Text c="rgba(255, 255, 255, 0.8)" size="sm" lineClamp={3}>
-                  {objective.description}
-                </Text>
-                
-                <Group gap="xs">
-                  <Badge 
-                    color={getPriorityColor(objective.priority)} 
-                    size="sm"
-                    leftSection={
-                      objective.priority === 'high' ? '🔴' : 
-                      objective.priority === 'medium' ? '🟡' : '🟢'
-                    }
-                  >
-                    {objective.priority?.toUpperCase() || 'MEDIUM'}
-                  </Badge>
-                  <Badge color="cyan" size="sm" leftSection={<IconTarget size={12} />}>
-                    {objective.category?.replace('_', ' ') || 'general'}
-                  </Badge>
-                  {objective.stakeholders?.length > 0 && (
-                    <Badge color="grape" size="sm" leftSection={<IconUsers size={12} />}>
-                      {objective.stakeholders.length} stakeholders
-                    </Badge>
-                  )}
-                  {objective.notes && (
-                    <Badge color="orange" size="sm" leftSection={<IconNotes size={12} />}>
-                      Has notes
-                    </Badge>
-                  )}
-                </Group>
+
+                <Collapse in={isExpanded}>
+                  <Box mt="md">
+                    <Grid>
+                      <Grid.Col span={6}>
+                        <Card className="glass-card" p="md" radius="md">
+                          <Text size="sm" fw={500} c="white" mb="xs">Category</Text>
+                          <Text c="rgba(255, 255, 255, 0.8)" size="sm">
+                            {objective.category?.replace('_', ' ') || 'General'}
+                          </Text>
+                        </Card>
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <Card className="glass-card" p="md" radius="md">
+                          <Text size="sm" fw={500} c="white" mb="xs">Priority Level</Text>
+                          <Group gap="xs">
+                            <Badge color={getPriorityColor(objective.priority)} size="sm">
+                              {objective.priority?.toUpperCase() || 'MEDIUM'}
+                            </Badge>
+                          </Group>
+                        </Card>
+                      </Grid.Col>
+                    </Grid>
+                    
+                    {(objective.stakeholders && Array.isArray(objective.stakeholders) && objective.stakeholders.length > 0) && (
+                      <Card className="glass-card" p="md" radius="md" mt="md">
+                        <Text size="sm" fw={500} c="white" mb="xs">Stakeholders</Text>
+                        <Group gap="xs">
+                          {objective.stakeholders.map((stakeholder, idx) => (
+                            <Badge key={idx} color="grape" size="sm">
+                              {stakeholder}
+                            </Badge>
+                          ))}
+                        </Group>
+                      </Card>
+                    )}
+                    
+                    {objective.notes && (
+                      <Card className="glass-card" p="md" radius="md" mt="md">
+                        <Text size="sm" fw={500} c="white" mb="xs">Additional Notes</Text>
+                        <Text c="rgba(255, 255, 255, 0.8)" size="sm">
+                          {objective.notes}
+                        </Text>
+                      </Card>
+                    )}
+                  </Box>
+                </Collapse>
               </Stack>
-              
-              <Group>
-                <ActionIcon 
-                  color="blue" 
-                  variant="subtle" 
-                  onClick={() => editObjective(objective)}
-                  size="lg"
-                >
-                  <IconEdit size={18} />
-                </ActionIcon>
-                <ActionIcon 
-                  color="red" 
-                  variant="subtle" 
-                  onClick={() => deleteObjective(objective.id)}
-                  size="lg"
-                >
-                  <IconTrash size={18} />
-                </ActionIcon>
-              </Group>
-            </Group>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </Stack>
 
       {(objectives || []).length === 0 && !isAdding && (
@@ -309,6 +422,38 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
                 { value: 'medium', label: '🟡 Medium Priority' },
                 { value: 'high', label: '🔴 High Priority' }
               ]}
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
+            <Textarea
+              label="Stakeholders (one per line)"
+              value={Array.isArray(editingObjective.stakeholders) ? editingObjective.stakeholders.join('\n') : ''}
+              onChange={(e) => setEditingObjective({ 
+                ...editingObjective, 
+                stakeholders: e.target.value.split('\n').filter(s => s.trim()) 
+              })}
+              rows={3}
+              placeholder="Enter stakeholders, one per line"
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
+            <Textarea
+              label="Notes"
+              value={editingObjective.notes || ''}
+              onChange={(e) => setEditingObjective({ ...editingObjective, notes: e.target.value })}
+              rows={3}
               styles={{
                 input: {
                   backgroundColor: 'rgba(255, 255, 255, 0.1)',

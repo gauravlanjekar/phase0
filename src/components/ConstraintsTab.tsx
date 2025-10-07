@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, NumberInput, Checkbox, Box, Modal } from '@mantine/core';
+import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, NumberInput, Checkbox, Box, Modal, Loader } from '@mantine/core';
 import { IconPlus, IconTrash, IconWand, IconShield, IconScale, IconLock, IconEdit } from '@tabler/icons-react';
 import { Constraint, ConstraintType, ConstraintOperator, Priority, createConstraint, Objective, Requirement } from '../types/models';
 import { missionAPI } from '../services/api';
@@ -10,6 +10,7 @@ interface ConstraintsTabProps {
   objectives?: Objective[];
   requirements?: Requirement[];
   onConstraintsChange: (constraints: Constraint[]) => void;
+  onRefresh?: () => void;
 }
 
 const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
@@ -17,10 +18,12 @@ const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
   constraints,
   objectives,
   requirements,
-  onConstraintsChange
+  onConstraintsChange,
+  onRefresh
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingConstraint, setEditingConstraint] = useState<Constraint | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [newConstraint, setNewConstraint] = useState({
     title: '',
     constraint_type: 'budget' as ConstraintType,
@@ -81,13 +84,17 @@ const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
   };
 
   const generateConstraints = async () => {
+    setIsGenerating(true);
     try {
       const response = await missionAPI.generateConstraints(missionId, objectives || [], requirements || []);
       if (response.success && Array.isArray(response.constraints)) {
         onConstraintsChange([...(constraints || []), ...response.constraints]);
+        onRefresh?.();
       }
     } catch (error) {
       console.error('Failed to generate constraints:', error);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -137,13 +144,18 @@ const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
         </Box>
         <Group>
           <Button 
-            leftSection={<IconWand size={16} />} 
-            variant="light" 
-            color="violet" 
+            leftSection={isGenerating ? <Loader size={18} color="white" /> : <IconWand size={18} />} 
+            variant="gradient"
+            gradient={{ from: '#667eea', to: '#764ba2' }}
             onClick={generateConstraints}
-            size="md"
+            disabled={isGenerating}
+            size="lg"
+            style={{
+              boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(102, 126, 234, 0.4)',
+              transform: isGenerating ? 'none' : 'translateY(-1px)'
+            }}
           >
-            AI Generate
+            {isGenerating ? 'Generating Constraints...' : '✨ AI Generate'}
           </Button>
           <Button 
             leftSection={<IconPlus size={16} />} 

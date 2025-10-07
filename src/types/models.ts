@@ -42,6 +42,7 @@ export interface Requirement {
   type: RequirementType;
   description: string;
   priority: Priority;
+  linkedObjectives: string[]; // Array of objective IDs
 }
 
 export interface Constraint {
@@ -145,7 +146,7 @@ export interface DesignSolution {
   name: string;
   label: string;
   status: SolutionStatus;
-  spacecraft: Spacecraft | null;
+  spacecraft: Spacecraft[];
   orbit: Orbit | null;
   groundStations: GroundStation[];
   notes: string;
@@ -193,7 +194,8 @@ export const createRequirement = (
   title,
   type,
   description,
-  priority
+  priority,
+  linkedObjectives: []
 });
 
 export const createConstraint = (
