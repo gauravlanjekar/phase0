@@ -843,8 +843,17 @@ Always get mission data first to understand the current state before making reco
 
 const agent = createReactAgent({ llm, tools, messageModifier: systemPrompt });
 
-// Conversation memory storage
+// Agent Core Memory integration
+import { HybridMemoryManager } from './agent-core-memory';
+
+// Initialize hybrid memory manager
+const memoryManager = new HybridMemoryManager(
+  process.env.AGENT_CORE_MEMORY_ID || 'mission-design-memory'
+);
+
+// Legacy conversation memory for backward compatibility
 const conversationMemory = new Map<string, any[]>();
+export { conversationMemory, memoryManager };
 
 // Express server
 const app = express();
@@ -901,7 +910,9 @@ You have full access to this mission data and can reference it directly in your 
     
     // Get or create conversation thread
     const currentThreadId = threadId || `thread_${missionId}_${Date.now()}`;
-    const conversationHistory = conversationMemory.get(currentThreadId) || [];
+    
+    // Get conversation history from Agent Core memory
+    const conversationHistory = await memoryManager.getConversation(currentThreadId);
     
     // Add current user message to history
     const userMessage = new HumanMessage(message);
@@ -925,8 +936,11 @@ You have full access to this mission data and can reference it directly in your 
       threadId: currentThreadId
     });
     
-    // Store conversation history (keep last 20 messages to prevent memory bloat)
+    // Store conversation history using Agent Core memory
     const updatedHistory = result.messages.slice(-20);
+    await memoryManager.storeConversation(currentThreadId, updatedHistory);
+    
+    // Also store in local memory for immediate fallback
     conversationMemory.set(currentThreadId, updatedHistory);
     
     const lastMessage = result.messages[result.messages.length - 1];

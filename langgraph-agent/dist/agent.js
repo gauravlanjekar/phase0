@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.memoryManager = exports.conversationMemory = void 0;
 require("dotenv/config");
 const openai_1 = require("@langchain/openai");
 const tools_1 = require("@langchain/core/tools");
@@ -730,8 +731,14 @@ When users want to modify existing solutions, use granular editing tools for pre
 When users ask about current information, recent missions, or specific components, use internet search to get up-to-date data.
 Always get mission data first to understand the current state before making recommendations.`;
 const agent = (0, prebuilt_1.createReactAgent)({ llm, tools, messageModifier: systemPrompt });
-// Conversation memory storage
+// Agent Core Memory integration
+const agent_core_memory_1 = require("./agent-core-memory");
+// Initialize hybrid memory manager
+const memoryManager = new agent_core_memory_1.HybridMemoryManager(process.env.AGENT_CORE_MEMORY_ID || 'mission-design-memory');
+exports.memoryManager = memoryManager;
+// Legacy conversation memory for backward compatibility
 const conversationMemory = new Map();
+exports.conversationMemory = conversationMemory;
 // Express server
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
@@ -782,7 +789,8 @@ You have full access to this mission data and can reference it directly in your 
         });
         // Get or create conversation thread
         const currentThreadId = threadId || `thread_${missionId}_${Date.now()}`;
-        const conversationHistory = conversationMemory.get(currentThreadId) || [];
+        // Get conversation history from Agent Core memory
+        const conversationHistory = await memoryManager.getConversation(currentThreadId);
         // Add current user message to history
         const userMessage = new messages_1.HumanMessage(message);
         const allMessages = [...conversationHistory, userMessage];
@@ -801,8 +809,10 @@ You have full access to this mission data and can reference it directly in your 
             messageCount: result.messages.length,
             threadId: currentThreadId
         });
-        // Store conversation history (keep last 20 messages to prevent memory bloat)
+        // Store conversation history using Agent Core memory
         const updatedHistory = result.messages.slice(-20);
+        await memoryManager.storeConversation(currentThreadId, updatedHistory);
+        // Also store in local memory for immediate fallback
         conversationMemory.set(currentThreadId, updatedHistory);
         const lastMessage = result.messages[result.messages.length - 1];
         res.json({
