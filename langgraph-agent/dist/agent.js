@@ -108,10 +108,10 @@ Return ONLY valid JSON array matching this schema:
   "id": "string (uuid)",
   "title": "string (concise objective title)",
   "description": "string (detailed description)",
-  "priority": "string (High|Medium|Low)",
-  "category": "string (Scientific|Operational|Technical|Commercial)",
-  "stakeholders": "string (comma-separated list)",
-  "notes": "string (additional context)"
+  "priority": "string (high|medium|low)",
+  "category": "string (scientific|operational|technical|commercial)",
+  "stakeholders": ["string array of stakeholder names"],
+  "notes": "string (keep very brief - 1-2 sentences max)"
 }]`;
         const response = await llm.invoke(prompt);
         const objectives = JSON.parse(response.content.toString().replace(/```json\n?/g, '').replace(/```/g, ''));
@@ -124,15 +124,30 @@ const generateRequirementsTool = new tools_1.DynamicTool({
     description: 'Generate technical REQUIREMENTS (what the system must do/achieve) based on mission objectives. Input: {"missionId": "string", "objectives": "array"}',
     func: withLogging('generate_requirements', async (input) => {
         const { missionId, objectives } = JSON.parse(input);
-        const prompt = `As an Earth Observation SMAD expert, generate 6 technical REQUIREMENTS based on: ${JSON.stringify(objectives)}. Focus on EO-specific requirements: Ground Sample Distance (GSD), swath width, revisit time, spectral bands, radiometric accuracy, geolocation accuracy, data latency, coverage area.
+        const prompt = `As an Earth Observation SMAD expert, generate 10-12 focused, granular technical REQUIREMENTS based on: ${JSON.stringify(objectives)}. Each requirement should address ONE specific aspect or parameter. Break down complex requirements into smaller, testable components.
+
+Focus on specific EO parameters:
+- Ground Sample Distance (GSD) - separate requirement
+- Swath width - separate requirement  
+- Revisit time - separate requirement
+- Spectral bands - separate requirement per band type
+- Radiometric accuracy - separate requirement
+- Geolocation accuracy - separate requirement
+- Data latency - separate requirement
+- Coverage area - separate requirement
+- Orbit altitude - separate requirement
+- Data storage capacity - separate requirement
+- Downlink data rate - separate requirement
+- Power generation - separate requirement
 
 Return ONLY valid JSON array matching this schema:
 [{
   "id": "string (uuid)",
-  "title": "string (requirement title)",
-  "type": "string (Performance|Functional|Interface|Environmental|Operational)",
-  "description": "string (detailed requirement specification)",
-  "priority": "string (High|Medium|Low)"
+  "title": "string (specific, focused requirement title)",
+  "type": "string (performance|functional|interface|environmental|operational)",
+  "description": "string (concise specification for ONE specific parameter)",
+  "priority": "string (high|medium|low)",
+  "linkedObjectives": ["array of objective IDs this requirement supports"]
 }]`;
         const response = await llm.invoke(prompt);
         const requirements = JSON.parse(response.content.toString().replace(/```json\n?/g, '').replace(/```/g, ''));
@@ -180,7 +195,7 @@ Return ONLY valid JSON array matching this exact schema:
   "name": "string (solution name)",
   "label": "string (short label)",
   "status": "string (proposed|under_evaluation|selected|rejected)",
-  "spacecraft": {
+  "spacecraft": [{
     "id": "string (uuid)",
     "name": "string (spacecraft name)",
     "components": [{
@@ -206,7 +221,7 @@ Return ONLY valid JSON array matching this exact schema:
     "totalPowerGenerated": "number (total W)",
     "totalPowerConsumed": "number (total W)",
     "totalCost": "number (total USD)"
-  },
+  }],
   "orbit": {
     "id": "string (uuid)",
     "name": "string (orbit name)",
@@ -239,25 +254,30 @@ Return ONLY valid JSON array matching this exact schema:
 // Granular editing tools
 const updateComponentTool = new tools_1.DynamicTool({
     name: 'update_component',
-    description: 'Update a specific component in a design solution. Input: {"missionId": "string", "solutionId": "string", "componentId": "string", "updates": "object"}',
+    description: 'Update a specific component in a design solution. Input: {"missionId": "string", "solutionId": "string", "spacecraftId": "string", "componentId": "string", "updates": "object"}',
     func: withLogging('update_component', async (input) => {
-        const { missionId, solutionId, componentId, updates } = JSON.parse(input);
+        const { missionId, solutionId, spacecraftId, componentId, updates } = JSON.parse(input);
         const data = await coreFunctions.getMissionData(missionId);
         const solutions = data.designSolutions || [];
         const updatedSolutions = solutions.map(sol => {
             if (sol.id === solutionId && sol.spacecraft) {
                 return {
                     ...sol,
-                    spacecraft: {
-                        ...sol.spacecraft,
-                        components: sol.spacecraft.components.map((comp) => comp.id === componentId ? { ...comp, ...updates } : comp)
-                    }
+                    spacecraft: sol.spacecraft.map((sc) => {
+                        if (sc.id === spacecraftId) {
+                            return {
+                                ...sc,
+                                components: sc.components.map((comp) => comp.id === componentId ? { ...comp, ...updates } : comp)
+                            };
+                        }
+                        return sc;
+                    })
                 };
             }
             return sol;
         });
         await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
-        return `Updated component ${componentId} in solution ${solutionId}.`;
+        return `Updated component ${componentId} in spacecraft ${spacecraftId} of solution ${solutionId}.`;
     })
 });
 const updateOrbitTool = new tools_1.DynamicTool({
@@ -294,48 +314,58 @@ const updateGroundStationTool = new tools_1.DynamicTool({
 });
 const addComponentTool = new tools_1.DynamicTool({
     name: 'add_component',
-    description: 'Add a new component to a spacecraft in a design solution. Input: {"missionId": "string", "solutionId": "string", "component": "object"}',
+    description: 'Add a new component to a spacecraft in a design solution. Input: {"missionId": "string", "solutionId": "string", "spacecraftId": "string", "component": "object"}',
     func: withLogging('add_component', async (input) => {
-        const { missionId, solutionId, component } = JSON.parse(input);
+        const { missionId, solutionId, spacecraftId, component } = JSON.parse(input);
         const data = await coreFunctions.getMissionData(missionId);
         const solutions = data.designSolutions || [];
         const updatedSolutions = solutions.map((sol) => {
             if (sol.id === solutionId && sol.spacecraft) {
                 return {
                     ...sol,
-                    spacecraft: {
-                        ...sol.spacecraft,
-                        components: [...sol.spacecraft.components, { id: Date.now().toString(), ...component }]
-                    }
+                    spacecraft: sol.spacecraft.map((sc) => {
+                        if (sc.id === spacecraftId) {
+                            return {
+                                ...sc,
+                                components: [...sc.components, { id: Date.now().toString(), ...component }]
+                            };
+                        }
+                        return sc;
+                    })
                 };
             }
             return sol;
         });
         await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
-        return `Added new ${component.type} component to solution ${solutionId}.`;
+        return `Added new ${component.type} component to spacecraft ${spacecraftId} in solution ${solutionId}.`;
     })
 });
 const removeComponentTool = new tools_1.DynamicTool({
     name: 'remove_component',
-    description: 'Remove a component from a spacecraft in a design solution. Input: {"missionId": "string", "solutionId": "string", "componentId": "string"}',
+    description: 'Remove a component from a spacecraft in a design solution. Input: {"missionId": "string", "solutionId": "string", "spacecraftId": "string", "componentId": "string"}',
     func: withLogging('remove_component', async (input) => {
-        const { missionId, solutionId, componentId } = JSON.parse(input);
+        const { missionId, solutionId, spacecraftId, componentId } = JSON.parse(input);
         const data = await coreFunctions.getMissionData(missionId);
         const solutions = data.designSolutions || [];
         const updatedSolutions = solutions.map((sol) => {
             if (sol.id === solutionId && sol.spacecraft) {
                 return {
                     ...sol,
-                    spacecraft: {
-                        ...sol.spacecraft,
-                        components: sol.spacecraft.components.filter((comp) => comp.id !== componentId)
-                    }
+                    spacecraft: sol.spacecraft.map((sc) => {
+                        if (sc.id === spacecraftId) {
+                            return {
+                                ...sc,
+                                components: sc.components.filter((comp) => comp.id !== componentId)
+                            };
+                        }
+                        return sc;
+                    })
                 };
             }
             return sol;
         });
         await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
-        return `Removed component ${componentId} from solution ${solutionId}.`;
+        return `Removed component ${componentId} from spacecraft ${spacecraftId} in solution ${solutionId}.`;
     })
 });
 // Granular editing tools for objectives, requirements, constraints
@@ -493,14 +523,17 @@ const getSolutionTool = new tools_1.DynamicTool({
 });
 const getComponentTool = new tools_1.DynamicTool({
     name: 'get_component',
-    description: 'Get details of a specific component in a design solution. Input: {"missionId": "string", "solutionId": "string", "componentId": "string"}',
+    description: 'Get details of a specific component in a design solution. Input: {"missionId": "string", "solutionId": "string", "spacecraftId": "string", "componentId": "string"}',
     func: withLogging('get_component', async (input) => {
-        const { missionId, solutionId, componentId } = JSON.parse(input);
+        const { missionId, solutionId, spacecraftId, componentId } = JSON.parse(input);
         const data = await coreFunctions.getMissionData(missionId);
         const solution = data.designSolutions.find((sol) => sol.id === solutionId);
-        if (!solution?.spacecraft?.components)
+        if (!solution?.spacecraft)
             return `Solution ${solutionId} or spacecraft not found.`;
-        const component = solution.spacecraft.components.find((comp) => comp.id === componentId);
+        const spacecraft = solution.spacecraft.find((sc) => sc.id === spacecraftId);
+        if (!spacecraft?.components)
+            return `Spacecraft ${spacecraftId} not found.`;
+        const component = spacecraft.components.find((comp) => comp.id === componentId);
         return component ? JSON.stringify(component, null, 2) : `Component ${componentId} not found.`;
     })
 });
@@ -516,12 +549,18 @@ const getOrbitTool = new tools_1.DynamicTool({
 });
 const getSpacecraftTool = new tools_1.DynamicTool({
     name: 'get_spacecraft',
-    description: 'Get spacecraft details of a specific design solution. Input: {"missionId": "string", "solutionId": "string"}',
+    description: 'Get spacecraft details of a specific design solution. Input: {"missionId": "string", "solutionId": "string", "spacecraftId": "string" (optional - if not provided, returns all spacecraft)}',
     func: withLogging('get_spacecraft', async (input) => {
-        const { missionId, solutionId } = JSON.parse(input);
+        const { missionId, solutionId, spacecraftId } = JSON.parse(input);
         const data = await coreFunctions.getMissionData(missionId);
         const solution = data.designSolutions.find((sol) => sol.id === solutionId);
-        return solution?.spacecraft ? JSON.stringify(solution.spacecraft, null, 2) : `Spacecraft for solution ${solutionId} not found.`;
+        if (!solution?.spacecraft)
+            return `Spacecraft for solution ${solutionId} not found.`;
+        if (spacecraftId) {
+            const spacecraft = solution.spacecraft.find((sc) => sc.id === spacecraftId);
+            return spacecraft ? JSON.stringify(spacecraft, null, 2) : `Spacecraft ${spacecraftId} not found.`;
+        }
+        return JSON.stringify(solution.spacecraft, null, 2);
     })
 });
 const getGroundStationTool = new tools_1.DynamicTool({
@@ -615,6 +654,66 @@ const removeGroundStationTool = new tools_1.DynamicTool({
         return `Removed ground station ${stationId} from solution ${solutionId}.`;
     })
 });
+const addSpacecraftTool = new tools_1.DynamicTool({
+    name: 'add_spacecraft',
+    description: 'Add a new spacecraft to a design solution. Input: {"missionId": "string", "solutionId": "string", "spacecraft": "object"}',
+    func: withLogging('add_spacecraft', async (input) => {
+        const { missionId, solutionId, spacecraft } = JSON.parse(input);
+        const data = await coreFunctions.getMissionData(missionId);
+        const solutions = data.designSolutions || [];
+        const updatedSolutions = solutions.map((sol) => {
+            if (sol.id === solutionId) {
+                return {
+                    ...sol,
+                    spacecraft: [...(sol.spacecraft || []), { id: Date.now().toString(), ...spacecraft }]
+                };
+            }
+            return sol;
+        });
+        await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
+        return `Added new spacecraft to solution ${solutionId}.`;
+    })
+});
+const removeSpacecraftTool = new tools_1.DynamicTool({
+    name: 'remove_spacecraft',
+    description: 'Remove a spacecraft from a design solution. Input: {"missionId": "string", "solutionId": "string", "spacecraftId": "string"}',
+    func: withLogging('remove_spacecraft', async (input) => {
+        const { missionId, solutionId, spacecraftId } = JSON.parse(input);
+        const data = await coreFunctions.getMissionData(missionId);
+        const solutions = data.designSolutions || [];
+        const updatedSolutions = solutions.map((sol) => {
+            if (sol.id === solutionId) {
+                return {
+                    ...sol,
+                    spacecraft: (sol.spacecraft || []).filter((sc) => sc.id !== spacecraftId)
+                };
+            }
+            return sol;
+        });
+        await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
+        return `Removed spacecraft ${spacecraftId} from solution ${solutionId}.`;
+    })
+});
+const updateSpacecraftTool = new tools_1.DynamicTool({
+    name: 'update_spacecraft',
+    description: 'Update a specific spacecraft in a design solution. Input: {"missionId": "string", "solutionId": "string", "spacecraftId": "string", "updates": "object"}',
+    func: withLogging('update_spacecraft', async (input) => {
+        const { missionId, solutionId, spacecraftId, updates } = JSON.parse(input);
+        const data = await coreFunctions.getMissionData(missionId);
+        const solutions = data.designSolutions || [];
+        const updatedSolutions = solutions.map((sol) => {
+            if (sol.id === solutionId) {
+                return {
+                    ...sol,
+                    spacecraft: (sol.spacecraft || []).map((sc) => sc.id === spacecraftId ? { ...sc, ...updates } : sc)
+                };
+            }
+            return sol;
+        });
+        await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
+        return `Updated spacecraft ${spacecraftId} in solution ${solutionId}.`;
+    })
+});
 // Internet search tool
 const searchInternetTool = new tools_1.DynamicTool({
     name: 'search_internet',
@@ -671,7 +770,7 @@ const searchInternetTool = new tools_1.DynamicTool({
         }
     })
 });
-const tools = [getMissionDataTool, getObjectiveTool, getRequirementTool, getConstraintTool, getSolutionTool, getComponentTool, getOrbitTool, getSpacecraftTool, getGroundStationTool, generateObjectivesTool, generateRequirementsTool, generateConstraintsTool, generateSolutionsTool, updateComponentTool, updateOrbitTool, updateGroundStationTool, addComponentTool, removeComponentTool, updateObjectiveTool, addObjectiveTool, removeObjectiveTool, updateRequirementTool, addRequirementTool, removeRequirementTool, updateConstraintTool, addConstraintTool, removeConstraintTool, addSolutionTool, removeSolutionTool, updateSolutionTool, addGroundStationTool, removeGroundStationTool, searchInternetTool];
+const tools = [getMissionDataTool, getObjectiveTool, getRequirementTool, getConstraintTool, getSolutionTool, getComponentTool, getOrbitTool, getSpacecraftTool, getGroundStationTool, generateObjectivesTool, generateRequirementsTool, generateConstraintsTool, generateSolutionsTool, updateComponentTool, updateOrbitTool, updateGroundStationTool, addComponentTool, removeComponentTool, updateObjectiveTool, addObjectiveTool, removeObjectiveTool, updateRequirementTool, addRequirementTool, removeRequirementTool, updateConstraintTool, addConstraintTool, removeConstraintTool, addSolutionTool, removeSolutionTool, updateSolutionTool, addGroundStationTool, removeGroundStationTool, addSpacecraftTool, removeSpacecraftTool, updateSpacecraftTool, searchInternetTool];
 const systemPrompt = `You are an expert SMAD (Space Mission Analysis and Design) assistant specializing in EARTH OBSERVATION missions for EARLY MISSION ANALYSIS (Phase A/B conceptual design). Keep analysis at appropriate conceptual level - not detailed engineering. Focus on:
 
 EARTH OBSERVATION EXPERTISE:
@@ -743,6 +842,20 @@ exports.conversationMemory = conversationMemory;
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)());
 app.use(express_1.default.json());
+// AWS AgentCore compatibility endpoints
+app.get('/ping', (req, res) => {
+    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+app.post('/invocations', async (req, res) => {
+    const { inputText, sessionId } = req.body;
+    try {
+        // Simple text response for AgentCore compatibility
+        res.json({ response: `Processed: ${inputText}`, sessionId });
+    }
+    catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 // Chat endpoint
 app.post('/chat', async (req, res) => {
     const { message, missionId, threadId } = req.body;
