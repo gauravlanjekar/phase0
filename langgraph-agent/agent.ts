@@ -527,6 +527,194 @@ const removeConstraintTool = new DynamicTool({
   })
 });
 
+// Individual entity fetch tools
+const getObjectiveTool = new DynamicTool({
+  name: 'get_objective',
+  description: 'Get details of a specific objective. Input: {"missionId": "string", "objectiveId": "string"}',
+  func: withLogging('get_objective', async (input: string) => {
+    const { missionId, objectiveId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const objective = data.objectives.find((obj: any) => obj.id === objectiveId);
+    return objective ? JSON.stringify(objective, null, 2) : `Objective ${objectiveId} not found.`;
+  })
+});
+
+const getRequirementTool = new DynamicTool({
+  name: 'get_requirement',
+  description: 'Get details of a specific requirement. Input: {"missionId": "string", "requirementId": "string"}',
+  func: withLogging('get_requirement', async (input: string) => {
+    const { missionId, requirementId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const requirement = data.requirements.find((req: any) => req.id === requirementId);
+    return requirement ? JSON.stringify(requirement, null, 2) : `Requirement ${requirementId} not found.`;
+  })
+});
+
+const getConstraintTool = new DynamicTool({
+  name: 'get_constraint',
+  description: 'Get details of a specific constraint. Input: {"missionId": "string", "constraintId": "string"}',
+  func: withLogging('get_constraint', async (input: string) => {
+    const { missionId, constraintId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const constraint = data.constraints.find((con: any) => con.id === constraintId);
+    return constraint ? JSON.stringify(constraint, null, 2) : `Constraint ${constraintId} not found.`;
+  })
+});
+
+const getSolutionTool = new DynamicTool({
+  name: 'get_solution',
+  description: 'Get details of a specific design solution. Input: {"missionId": "string", "solutionId": "string"}',
+  func: withLogging('get_solution', async (input: string) => {
+    const { missionId, solutionId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solution = data.designSolutions.find((sol: any) => sol.id === solutionId);
+    return solution ? JSON.stringify(solution, null, 2) : `Solution ${solutionId} not found.`;
+  })
+});
+
+const getComponentTool = new DynamicTool({
+  name: 'get_component',
+  description: 'Get details of a specific component in a design solution. Input: {"missionId": "string", "solutionId": "string", "componentId": "string"}',
+  func: withLogging('get_component', async (input: string) => {
+    const { missionId, solutionId, componentId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solution = data.designSolutions.find((sol: any) => sol.id === solutionId);
+    if (!solution?.spacecraft?.components) return `Solution ${solutionId} or spacecraft not found.`;
+    const component = solution.spacecraft.components.find((comp: any) => comp.id === componentId);
+    return component ? JSON.stringify(component, null, 2) : `Component ${componentId} not found.`;
+  })
+});
+
+const getOrbitTool = new DynamicTool({
+  name: 'get_orbit',
+  description: 'Get orbit details of a specific design solution. Input: {"missionId": "string", "solutionId": "string"}',
+  func: withLogging('get_orbit', async (input: string) => {
+    const { missionId, solutionId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solution = data.designSolutions.find((sol: any) => sol.id === solutionId);
+    return solution?.orbit ? JSON.stringify(solution.orbit, null, 2) : `Orbit for solution ${solutionId} not found.`;
+  })
+});
+
+const getSpacecraftTool = new DynamicTool({
+  name: 'get_spacecraft',
+  description: 'Get spacecraft details of a specific design solution. Input: {"missionId": "string", "solutionId": "string"}',
+  func: withLogging('get_spacecraft', async (input: string) => {
+    const { missionId, solutionId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solution = data.designSolutions.find((sol: any) => sol.id === solutionId);
+    return solution?.spacecraft ? JSON.stringify(solution.spacecraft, null, 2) : `Spacecraft for solution ${solutionId} not found.`;
+  })
+});
+
+const getGroundStationTool = new DynamicTool({
+  name: 'get_ground_station',
+  description: 'Get details of a specific ground station in a design solution. Input: {"missionId": "string", "solutionId": "string", "stationId": "string"}',
+  func: withLogging('get_ground_station', async (input: string) => {
+    const { missionId, solutionId, stationId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solution = data.designSolutions.find((sol: any) => sol.id === solutionId);
+    if (!solution?.groundStations) return `Solution ${solutionId} or ground stations not found.`;
+    const station = solution.groundStations.find((gs: any) => gs.id === stationId);
+    return station ? JSON.stringify(station, null, 2) : `Ground station ${stationId} not found.`;
+  })
+});
+
+// Missing CRUD operations for solutions and ground stations
+const addSolutionTool = new DynamicTool({
+  name: 'add_solution',
+  description: 'Add a new design solution to the mission. Input: {"missionId": "string", "solution": "object"}',
+  func: withLogging('add_solution', async (input: string) => {
+    const { missionId, solution } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solutions = data.designSolutions || [];
+    
+    const newSolution = { id: Date.now().toString(), ...solution };
+    const updatedSolutions = [...solutions, newSolution];
+    
+    await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
+    return `Added new design solution: ${solution.name}.`;
+  })
+});
+
+const removeSolutionTool = new DynamicTool({
+  name: 'remove_solution',
+  description: 'Remove a design solution from the mission. Input: {"missionId": "string", "solutionId": "string"}',
+  func: withLogging('remove_solution', async (input: string) => {
+    const { missionId, solutionId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solutions = data.designSolutions || [];
+    
+    const updatedSolutions = solutions.filter((sol: any) => sol.id !== solutionId);
+    
+    await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
+    return `Removed design solution ${solutionId}.`;
+  })
+});
+
+const updateSolutionTool = new DynamicTool({
+  name: 'update_solution',
+  description: 'Update a specific design solution. Input: {"missionId": "string", "solutionId": "string", "updates": "object"}',
+  func: withLogging('update_solution', async (input: string) => {
+    const { missionId, solutionId, updates } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solutions = data.designSolutions || [];
+    
+    const updatedSolutions = solutions.map((sol: any) => 
+      sol.id === solutionId ? { ...sol, ...updates } : sol
+    );
+    
+    await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
+    return `Updated design solution ${solutionId}.`;
+  })
+});
+
+const addGroundStationTool = new DynamicTool({
+  name: 'add_ground_station',
+  description: 'Add a new ground station to a design solution. Input: {"missionId": "string", "solutionId": "string", "groundStation": "object"}',
+  func: withLogging('add_ground_station', async (input: string) => {
+    const { missionId, solutionId, groundStation } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solutions = data.designSolutions || [];
+    
+    const updatedSolutions = solutions.map((sol: any) => {
+      if (sol.id === solutionId) {
+        return {
+          ...sol,
+          groundStations: [...(sol.groundStations || []), { id: Date.now().toString(), ...groundStation }]
+        };
+      }
+      return sol;
+    });
+    
+    await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
+    return `Added new ground station to solution ${solutionId}.`;
+  })
+});
+
+const removeGroundStationTool = new DynamicTool({
+  name: 'remove_ground_station',
+  description: 'Remove a ground station from a design solution. Input: {"missionId": "string", "solutionId": "string", "stationId": "string"}',
+  func: withLogging('remove_ground_station', async (input: string) => {
+    const { missionId, solutionId, stationId } = JSON.parse(input);
+    const data = await coreFunctions.getMissionData(missionId);
+    const solutions = data.designSolutions || [];
+    
+    const updatedSolutions = solutions.map((sol: any) => {
+      if (sol.id === solutionId) {
+        return {
+          ...sol,
+          groundStations: (sol.groundStations || []).filter((gs: any) => gs.id !== stationId)
+        };
+      }
+      return sol;
+    });
+    
+    await coreFunctions.saveData(missionId, 3, { designSolutions: updatedSolutions });
+    return `Removed ground station ${stationId} from solution ${solutionId}.`;
+  })
+});
+
 // Internet search tool
 const searchInternetTool = new DynamicTool({
   name: 'search_internet',
@@ -592,7 +780,7 @@ const searchInternetTool = new DynamicTool({
   })
 });
 
-const tools = [getMissionDataTool, generateObjectivesTool, generateRequirementsTool, generateConstraintsTool, generateSolutionsTool, updateComponentTool, updateOrbitTool, updateGroundStationTool, addComponentTool, removeComponentTool, updateObjectiveTool, addObjectiveTool, removeObjectiveTool, updateRequirementTool, addRequirementTool, removeRequirementTool, updateConstraintTool, addConstraintTool, removeConstraintTool, searchInternetTool];
+const tools = [getMissionDataTool, getObjectiveTool, getRequirementTool, getConstraintTool, getSolutionTool, getComponentTool, getOrbitTool, getSpacecraftTool, getGroundStationTool, generateObjectivesTool, generateRequirementsTool, generateConstraintsTool, generateSolutionsTool, updateComponentTool, updateOrbitTool, updateGroundStationTool, addComponentTool, removeComponentTool, updateObjectiveTool, addObjectiveTool, removeObjectiveTool, updateRequirementTool, addRequirementTool, removeRequirementTool, updateConstraintTool, addConstraintTool, removeConstraintTool, addSolutionTool, removeSolutionTool, updateSolutionTool, addGroundStationTool, removeGroundStationTool, searchInternetTool];
 
 const systemPrompt = `You are an expert SMAD (Space Mission Analysis and Design) assistant specializing in EARTH OBSERVATION missions for EARLY MISSION ANALYSIS (Phase A/B conceptual design). Keep analysis at appropriate conceptual level - not detailed engineering. Focus on:
 
@@ -655,6 +843,9 @@ Always get mission data first to understand the current state before making reco
 
 const agent = createReactAgent({ llm, tools, messageModifier: systemPrompt });
 
+// Conversation memory storage
+const conversationMemory = new Map<string, any[]>();
+
 // Express server
 const app = express();
 app.use(cors());
@@ -662,10 +853,28 @@ app.use(express.json());
 
 // Chat endpoint
 app.post('/chat', async (req: Request, res: Response) => {
-  const { message, missionId } = req.body;
-  log.debug('Chat request received', { message: message?.substring(0, 50) + '...', missionId });
+  const { message, missionId, threadId } = req.body;
+  log.debug('Chat request received', { message: message?.substring(0, 50) + '...', missionId, threadId });
   
   try {
+    // Get current mission data for context
+    const missionData = await coreFunctions.getMissionData(missionId);
+    
+    // Create contextual system prompt with mission data
+    const contextualSystemPrompt = `${systemPrompt}
+
+=== CURRENT MISSION CONTEXT ===
+Mission ID: ${missionId}
+Mission Brief: ${missionData.mission.brief}
+
+Current Status:
+- Objectives: ${missionData.objectives.length} defined
+- Requirements: ${missionData.requirements.length} defined  
+- Constraints: ${missionData.constraints.length} defined
+- Design Solutions: ${missionData.designSolutions.length} proposed
+
+You have full access to this mission data and can reference it directly in your responses. Use tools to get detailed information when needed.`;
+    
     // Inject missionId into tools context
     const contextualTools = tools.map(tool => new DynamicTool({
       name: tool.name,
@@ -684,47 +893,47 @@ app.post('/chat', async (req: Request, res: Response) => {
       }
     }));
     
-    log.debug('🤖 Creating agent with tools', { 
-      toolNames: contextualTools.map(t => t.name),
-      systemPromptLength: systemPrompt.length
-    });
-    
     const contextualAgent = createReactAgent({ 
       llm, 
       tools: contextualTools, 
-      messageModifier: systemPrompt 
+      messageModifier: contextualSystemPrompt 
     });
     
-    log.debug('🔧 System prompt:', { prompt: systemPrompt });
+    // Get or create conversation thread
+    const currentThreadId = threadId || `thread_${missionId}_${Date.now()}`;
+    const conversationHistory = conversationMemory.get(currentThreadId) || [];
     
-    log.debug('🚀 Invoking agent', { messageLength: message.length });
+    // Add current user message to history
+    const userMessage = new HumanMessage(message);
+    const allMessages = [...conversationHistory, userMessage];
+    
+    log.debug('🚀 Invoking agent', { 
+      messageLength: message.length, 
+      threadId: currentThreadId,
+      historyLength: conversationHistory.length
+    });
     const startTime = Date.now();
     
     const result = await contextualAgent.invoke({
-      messages: [new HumanMessage(message)]
+      messages: allMessages
     });
     
     const duration = Date.now() - startTime;
     log.debug('✅ Agent completed', { 
       duration: `${duration}ms`, 
       messageCount: result.messages.length,
-      messageTypes: result.messages.map(m => m.constructor.name)
+      threadId: currentThreadId
     });
     
-    // Log all messages for debugging
-    result.messages.forEach((msg, i) => {
-      log.debug(`📝 Message ${i}:`, {
-        type: msg.constructor.name,
-        content: msg.content.toString().substring(0, 200) + '...',
-        hasToolCalls: 'tool_calls' in msg ? (msg as any).tool_calls?.length || 0 : 0
-      });
-    });
+    // Store conversation history (keep last 20 messages to prevent memory bloat)
+    const updatedHistory = result.messages.slice(-20);
+    conversationMemory.set(currentThreadId, updatedHistory);
     
     const lastMessage = result.messages[result.messages.length - 1];
     
     res.json({ 
       response: lastMessage.content.toString(),
-      threadId: `thread_${Date.now()}`
+      threadId: currentThreadId
     });
   } catch (error) {
     log.error('Chat failed', { error: (error as Error).message });
