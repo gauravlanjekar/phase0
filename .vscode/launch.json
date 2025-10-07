@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug LangGraph Agent",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/langgraph-agent/agent.js",
+      "cwd": "${workspaceFolder}/langgraph-agent",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "envFile": "${workspaceFolder}/langgraph-agent/.env",
+      "console": "integratedTerminal",
+      "restart": true,
+      "runtimeArgs": ["--inspect"],
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Attach to Agent Process",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "localRoot": "${workspaceFolder}/langgraph-agent",
+      "remoteRoot": "${workspaceFolder}/langgraph-agent"
+    }
+  ]
+}

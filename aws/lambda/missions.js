@@ -1,7 +1,10 @@
-const AWS = require('aws-sdk');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, PutCommand, DeleteCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
 const { v4: uuidv4 } = require('uuid');
+const axios = require('axios');
 
-const dynamodb = new AWS.DynamoDB.DocumentClient();
+const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'eu-central-1' });
+const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
 const MISSIONS_TABLE = process.env.MISSIONS_TABLE;
 const MISSION_DATA_TABLE = process.env.MISSION_DATA_TABLE;
 
@@ -23,6 +26,7 @@ exports.handler = async (event) => {
         break;
       
       case '/missions/{id}':
+        if (httpMethod === 'GET') return await getMission(pathParameters.id);
         if (httpMethod === 'DELETE') return await deleteMission(pathParameters.id);
         break;
       
@@ -31,9 +35,7 @@ exports.handler = async (event) => {
         if (httpMethod === 'PUT') return await saveTabData(pathParameters.id, pathParameters.tabIndex, JSON.parse(body));
         break;
       
-      case '/missions/{id}/chat':
-        if (httpMethod === 'POST') return await sendChat(JSON.parse(body));
-        break;
+
     }
     
     return { statusCode: 404, headers, body: JSON.stringify({ error: 'Not found' }) };
@@ -43,7 +45,7 @@ exports.handler = async (event) => {
 };
 
 async function getMissions() {
-  const result = await dynamodb.scan({ TableName: MISSIONS_TABLE }).promise();
+  const result = await dynamodb.send(new ScanCommand({ TableName: MISSIONS_TABLE }));
   return { statusCode: 200, headers, body: JSON.stringify(result.Items) };
 }
 
@@ -54,21 +56,29 @@ async function createMission({ brief }) {
     createdAt: new Date().toISOString()
   };
   
-  await dynamodb.put({ TableName: MISSIONS_TABLE, Item: mission }).promise();
+  await dynamodb.send(new PutCommand({ TableName: MISSIONS_TABLE, Item: mission }));
   return { statusCode: 201, headers, body: JSON.stringify(mission) };
 }
 
+async function getMission(id) {
+  const result = await dynamodb.send(new GetCommand({ TableName: MISSIONS_TABLE, Key: { id } }));
+  if (!result.Item) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Mission not found' }) };
+  }
+  return { statusCode: 200, headers, body: JSON.stringify(result.Item) };
+}
+
 async function deleteMission(id) {
-  await dynamodb.delete({ TableName: MISSIONS_TABLE, Key: { id } }).promise();
+  await dynamodb.send(new DeleteCommand({ TableName: MISSIONS_TABLE, Key: { id } }));
   return { statusCode: 204, headers, body: '' };
 }
 
 async function getTabData(missionId, tabIndex) {
   try {
-    const result = await dynamodb.get({
+    const result = await dynamodb.send(new GetCommand({
       TableName: MISSION_DATA_TABLE,
       Key: { missionId, tabIndex }
-    }).promise();
+    }));
     
     let data = result.Item || { notes: '', status: 'Not Started' };
     
@@ -105,14 +115,11 @@ async function getTabData(missionId, tabIndex) {
 
 async function saveTabData(missionId, tabIndex, data) {
   const item = { missionId, tabIndex, ...data };
-  await dynamodb.put({ TableName: MISSION_DATA_TABLE, Item: item }).promise();
+  await dynamodb.send(new PutCommand({ TableName: MISSION_DATA_TABLE, Item: item }));
   return { statusCode: 200, headers, body: JSON.stringify(item) };
 }
 
-async function sendChat({ message }) {
-  const response = `I understand your request about: "${message}". How can I help you further with this mission?`;
-  return { statusCode: 200, headers, body: JSON.stringify({ response }) };
-}
+
 
 function createDefaultRequirements() {
   const categories = [

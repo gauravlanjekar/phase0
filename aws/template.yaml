@@ -43,6 +43,7 @@ Resources:
       CodeUri: lambda/
       Handler: missions.handler
       Runtime: nodejs18.x
+      Timeout: 30
       Environment:
         Variables:
           MISSIONS_TABLE: !Ref MissionsTable
@@ -52,6 +53,7 @@ Resources:
             TableName: !Ref MissionsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref MissionDataTable
+
       Events:
         GetMissions:
           Type: Api
@@ -65,6 +67,12 @@ Resources:
             RestApiId: !Ref MissionApi
             Path: /missions
             Method: post
+        GetMission:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MissionApi
+            Path: /missions/{id}
+            Method: get
         DeleteMission:
           Type: Api
           Properties:
@@ -83,12 +91,7 @@ Resources:
             RestApiId: !Ref MissionApi
             Path: /missions/{id}/tabs/{tabIndex}
             Method: put
-        SendChat:
-          Type: Api
-          Properties:
-            RestApiId: !Ref MissionApi
-            Path: /missions/{id}/chat
-            Method: post
+
 
   # API Gateway
   MissionApi:
@@ -99,6 +102,8 @@ Resources:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
+      Auth:
+        ApiKeyRequired: false
 
 Outputs:
   ApiUrl:
