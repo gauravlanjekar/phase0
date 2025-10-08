@@ -30,6 +30,13 @@ const MissionWorkspace: React.FC = () => {
     loadTabData();
   }, [id, navigate]);
 
+  // Refresh data when tab changes
+  useEffect(() => {
+    if (id && activeTab) {
+      loadTabData();
+    }
+  }, [activeTab, id]);
+
   const loadTabData = async () => {
     if (!id) return;
     try {
@@ -160,6 +167,7 @@ const MissionWorkspace: React.FC = () => {
                 missionId={id!}
                 objectives={objectives}
                 onObjectivesChange={handleObjectivesChange}
+                onRefresh={loadTabData}
               />
             </Tabs.Panel>
 
@@ -169,6 +177,7 @@ const MissionWorkspace: React.FC = () => {
                 requirements={requirements}
                 objectives={objectives}
                 onRequirementsChange={handleRequirementsChange}
+                onRefresh={loadTabData}
               />
             </Tabs.Panel>
 
@@ -179,6 +188,7 @@ const MissionWorkspace: React.FC = () => {
                 objectives={objectives}
                 requirements={requirements}
                 onConstraintsChange={handleConstraintsChange}
+                onRefresh={loadTabData}
               />
             </Tabs.Panel>
 
@@ -190,6 +200,7 @@ const MissionWorkspace: React.FC = () => {
                 requirements={requirements}
                 constraints={constraints}
                 onSolutionsChange={handleSolutionsChange}
+                onRefresh={loadTabData}
               />
             </Tabs.Panel>
           </Tabs>

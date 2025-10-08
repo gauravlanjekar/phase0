@@ -42,6 +42,15 @@ export interface Requirement {
   type: RequirementType;
   description: string;
   priority: Priority;
+  linkedObjectives: string[]; // Array of objective IDs
+  validationFormula?: {
+    formula: string;
+    variables: Record<string, {
+      path: string;
+      unit: string;
+    }>;
+    description: string;
+  };
 }
 
 export interface Constraint {
@@ -140,12 +149,21 @@ export interface GroundStation {
   notes: string;
 }
 
+export interface ValidationResult {
+  requirementId: string;
+  status: 'PASS' | 'FAIL' | 'ERROR';
+  actualValues: Record<string, any>;
+  requiredValues: Record<string, any>;
+  formula: string;
+  error?: string;
+}
+
 export interface DesignSolution {
   id: string;
   name: string;
   label: string;
   status: SolutionStatus;
-  spacecraft: Spacecraft | null;
+  spacecraft: Spacecraft[];
   orbit: Orbit | null;
   groundStations: GroundStation[];
   notes: string;
@@ -193,7 +211,8 @@ export const createRequirement = (
   title,
   type,
   description,
-  priority
+  priority,
+  linkedObjectives: []
 });
 
 export const createConstraint = (

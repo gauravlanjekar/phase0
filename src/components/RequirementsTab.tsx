@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, Box, Modal, Loader } from '@mantine/core';
-import { IconPlus, IconTrash, IconWand, IconClipboardList, IconSettings, IconShield, IconEdit } from '@tabler/icons-react';
+import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, Box, Modal, Loader, MultiSelect, Collapse, Grid } from '@mantine/core';
+import { IconPlus, IconTrash, IconWand, IconClipboardList, IconSettings, IconShield, IconEdit, IconTarget, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { Requirement, RequirementType, Priority, createRequirement, Objective } from '../types/models';
 import { missionAPI } from '../services/api';
 
@@ -9,21 +9,25 @@ interface RequirementsTabProps {
   requirements?: Requirement[];
   objectives?: Objective[];
   onRequirementsChange: (requirements: Requirement[]) => void;
+  onRefresh?: () => void;
 }
 
 const RequirementsTab: React.FC<RequirementsTabProps> = ({
   missionId,
   requirements,
   objectives,
-  onRequirementsChange
+  onRequirementsChange,
+  onRefresh
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingRequirement, setEditingRequirement] = useState<Requirement | null>(null);
+  const [expandedRequirements, setExpandedRequirements] = useState<Set<string>>(new Set());
   const [newRequirement, setNewRequirement] = useState({
     title: '',
     type: 'functional' as RequirementType,
     description: '',
-    priority: 'medium' as Priority
+    priority: 'medium' as Priority,
+    linkedObjectives: [] as string[]
   });
 
   const addRequirement = () => {
@@ -36,9 +40,10 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
       newRequirement.description,
       newRequirement.priority
     );
+    requirement.linkedObjectives = newRequirement.linkedObjectives;
     
     onRequirementsChange([...(requirements || []), requirement]);
-    setNewRequirement({ title: '', type: 'functional', description: '', priority: 'medium' });
+    setNewRequirement({ title: '', type: 'functional', description: '', priority: 'medium', linkedObjectives: [] });
     setIsAdding(false);
   };
 
@@ -67,6 +72,7 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
       const response = await missionAPI.generateRequirements(missionId, objectives || []);
       if (response.success && Array.isArray(response.requirements)) {
         onRequirementsChange([...(requirements || []), ...response.requirements]);
+        onRefresh?.();
       }
     } catch (error) {
       console.error('Failed to generate requirements:', error);
@@ -105,6 +111,16 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
     }
   };
 
+  const toggleExpanded = (requirementId: string) => {
+    const newExpanded = new Set(expandedRequirements);
+    if (newExpanded.has(requirementId)) {
+      newExpanded.delete(requirementId);
+    } else {
+      newExpanded.add(requirementId);
+    }
+    setExpandedRequirements(newExpanded);
+  };
+
   return (
     <Stack gap="xl">
       <Group justify="space-between" align="center">
@@ -119,13 +135,18 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
         </Box>
         <Group>
           <Button 
-            leftSection={<IconWand size={16} />} 
-            variant="light" 
-            color="violet" 
+            leftSection={isGenerating ? <Loader size={18} color="white" /> : <IconWand size={18} />} 
+            variant="gradient"
+            gradient={{ from: '#667eea', to: '#764ba2' }}
             onClick={generateRequirements}
-            size="md"
+            disabled={isGenerating}
+            size="lg"
+            style={{
+              boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(102, 126, 234, 0.4)',
+              transform: isGenerating ? 'none' : 'translateY(-1px)'
+            }}
           >
-            AI Generate
+            {isGenerating ? 'Generating Requirements...' : '✨ AI Generate'}
           </Button>
           <Button 
             leftSection={<IconPlus size={16} />} 
@@ -213,6 +234,21 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
                 }}
               />
             </Group>
+            <MultiSelect
+              label="Linked Objectives"
+              placeholder="Select objectives this requirement supports"
+              value={newRequirement.linkedObjectives}
+              onChange={(value) => setNewRequirement({ ...newRequirement, linkedObjectives: value })}
+              data={(objectives || []).map(obj => ({ value: obj.id, label: obj.title }))}
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
             <Group>
               <Button onClick={addRequirement} variant="gradient" gradient={{ from: '#11998e', to: '#38ef7d' }}>
                 Save Requirement
@@ -226,63 +262,165 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
       )}
 
       <Stack gap="md">
-        {(requirements || []).map((requirement, index) => (
-          <Card key={requirement.id} className="glass-card-dark floating-card" padding="xl" radius="lg">
-            <Group justify="space-between" align="flex-start">
-              <Stack gap="md" style={{ flex: 1 }}>
-                <Group align="center" gap="sm">
-                  <Badge size="sm" variant="light" color="blue">
-                    REQ-{String(index + 1).padStart(3, '0')}
-                  </Badge>
-                  <Title order={4} c="white">{requirement.title}</Title>
+        {(requirements || []).map((requirement, index) => {
+          const isExpanded = expandedRequirements.has(requirement.id);
+          const linkedObjs = (requirement.linkedObjectives && Array.isArray(requirement.linkedObjectives)) 
+            ? (objectives || []).filter(obj => requirement.linkedObjectives.includes(obj.id))
+            : [];
+          
+          return (
+            <Card key={requirement.id} className="glass-card-dark floating-card" padding="xl" radius="lg">
+              <Stack gap="md">
+                <Group justify="space-between" align="flex-start">
+                  <Stack gap="md" style={{ flex: 1 }}>
+                    <Group align="center" gap="sm">
+                      <Badge size="sm" variant="light" color="blue">
+                        REQ-{String(index + 1).padStart(3, '0')}
+                      </Badge>
+                      <Title order={4} c="white">{requirement.title}</Title>
+                    </Group>
+                    
+                    <Text c="rgba(255, 255, 255, 0.8)" size="sm" lineClamp={isExpanded ? undefined : 2}>
+                      {requirement.description}
+                    </Text>
+                    
+                    <Group gap="xs">
+                      <Badge 
+                        color={getPriorityColor(requirement.priority)} 
+                        size="sm"
+                        leftSection={
+                          requirement.priority === 'high' ? '🔴' : 
+                          requirement.priority === 'medium' ? '🟡' : '🟢'
+                        }
+                      >
+                        {requirement.priority?.toUpperCase() || 'MEDIUM'}
+                      </Badge>
+                      <Badge 
+                        color={getTypeColor(requirement.type)} 
+                        size="sm" 
+                        leftSection={getTypeIcon(requirement.type)}
+                      >
+                        {requirement.type?.replace('_', ' ').toUpperCase() || 'FUNCTIONAL'}
+                      </Badge>
+                      {(requirement.linkedObjectives && Array.isArray(requirement.linkedObjectives) && requirement.linkedObjectives.length > 0) && (
+                        <Badge color="violet" size="sm" leftSection={<IconTarget size={12} />}>
+                          {requirement.linkedObjectives.length} linked
+                        </Badge>
+                      )}
+                    </Group>
+                  </Stack>
+                  
+                  <Group>
+                    <ActionIcon 
+                      color="blue" 
+                      variant="subtle" 
+                      onClick={() => editRequirement(requirement)}
+                      size="lg"
+                    >
+                      <IconEdit size={18} />
+                    </ActionIcon>
+                    <ActionIcon 
+                      variant="subtle" 
+                      onClick={() => toggleExpanded(requirement.id)}
+                      size="lg"
+                      c="white"
+                    >
+                      {isExpanded ? <IconChevronUp size={18} /> : <IconChevronDown size={18} />}
+                    </ActionIcon>
+                    <ActionIcon 
+                      color="red" 
+                      variant="subtle" 
+                      onClick={() => deleteRequirement(requirement.id)}
+                      size="lg"
+                    >
+                      <IconTrash size={18} />
+                    </ActionIcon>
+                  </Group>
                 </Group>
-                
-                <Text c="rgba(255, 255, 255, 0.8)" size="sm" lineClamp={3}>
-                  {requirement.description}
-                </Text>
-                
-                <Group gap="xs">
-                  <Badge 
-                    color={getPriorityColor(requirement.priority)} 
-                    size="sm"
-                    leftSection={
-                      requirement.priority === 'high' ? '🔴' : 
-                      requirement.priority === 'medium' ? '🟡' : '🟢'
-                    }
-                  >
-                    {requirement.priority?.toUpperCase() || 'MEDIUM'}
-                  </Badge>
-                  <Badge 
-                    color={getTypeColor(requirement.type)} 
-                    size="sm" 
-                    leftSection={getTypeIcon(requirement.type)}
-                  >
-                    {requirement.type?.replace('_', ' ').toUpperCase() || 'FUNCTIONAL'}
-                  </Badge>
-                </Group>
+
+                <Collapse in={isExpanded}>
+                  <Box mt="md">
+                    <Grid>
+                      <Grid.Col span={6}>
+                        <Card className="glass-card" p="md" radius="md">
+                          <Text size="sm" fw={500} c="white" mb="xs">Requirement Type</Text>
+                          <Badge color={getTypeColor(requirement.type)} size="sm" leftSection={getTypeIcon(requirement.type)}>
+                            {requirement.type?.replace('_', ' ').toUpperCase() || 'FUNCTIONAL'}
+                          </Badge>
+                        </Card>
+                      </Grid.Col>
+                      <Grid.Col span={6}>
+                        <Card className="glass-card" p="md" radius="md">
+                          <Text size="sm" fw={500} c="white" mb="xs">Priority Level</Text>
+                          <Badge color={getPriorityColor(requirement.priority)} size="sm">
+                            {requirement.priority?.toUpperCase() || 'MEDIUM'}
+                          </Badge>
+                        </Card>
+                      </Grid.Col>
+                    </Grid>
+                    
+                    {linkedObjs.length > 0 && (
+                      <Card className="glass-card" p="md" radius="md" mt="md">
+                        <Text size="sm" fw={500} c="white" mb="xs">Linked Objectives</Text>
+                        <Stack gap="xs">
+                          {linkedObjs.map((obj) => (
+                            <Card key={obj.id} className="glass-card-dark" p="sm" radius="sm">
+                              <Group justify="space-between" align="center">
+                                <Text c="white" size="sm" fw={500}>{obj.title}</Text>
+                                <Badge color="violet" size="xs">
+                                  {obj.priority?.toUpperCase()}
+                                </Badge>
+                              </Group>
+                              <Text c="rgba(255, 255, 255, 0.7)" size="xs" mt="xs" lineClamp={2}>
+                                {obj.description}
+                              </Text>
+                            </Card>
+                          ))}
+                        </Stack>
+                      </Card>
+                    )}
+                    
+                    {requirement.validationFormula && (
+                      <Card className="glass-card" p="md" radius="md" mt="md">
+                        <Text size="sm" fw={500} c="white" mb="xs">Validation Formula</Text>
+                        <Stack gap="sm">
+                          <Box>
+                            <Text size="xs" c="dimmed" mb="xs">Formula</Text>
+                            <Text c="white" size="sm" ff="monospace" style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px' }}>
+                              {requirement.validationFormula.formula}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text size="xs" c="dimmed" mb="xs">Variables</Text>
+                            <Stack gap="xs">
+                              {Object.entries(requirement.validationFormula.variables || {}).map(([varName, varConfig]) => {
+                                const path = typeof varConfig === 'string' ? varConfig : varConfig.path;
+                                const unit = typeof varConfig === 'string' ? '' : varConfig.unit;
+                                return (
+                                  <Group key={varName} gap="sm">
+                                    <Badge size="xs" color="blue">{varName}</Badge>
+                                    <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{path}</Text>
+                                    {unit && <Badge size="xs" color="green">{unit}</Badge>}
+                                  </Group>
+                                );
+                              })}
+                            </Stack>
+                          </Box>
+                          <Box>
+                            <Text size="xs" c="dimmed" mb="xs">Description</Text>
+                            <Text c="rgba(255,255,255,0.8)" size="sm">
+                              {requirement.validationFormula.description}
+                            </Text>
+                          </Box>
+                        </Stack>
+                      </Card>
+                    )}
+                  </Box>
+                </Collapse>
               </Stack>
-              
-              <Group>
-                <ActionIcon 
-                  color="blue" 
-                  variant="subtle" 
-                  onClick={() => editRequirement(requirement)}
-                  size="lg"
-                >
-                  <IconEdit size={18} />
-                </ActionIcon>
-                <ActionIcon 
-                  color="red" 
-                  variant="subtle" 
-                  onClick={() => deleteRequirement(requirement.id)}
-                  size="lg"
-                >
-                  <IconTrash size={18} />
-                </ActionIcon>
-              </Group>
-            </Group>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </Stack>
 
       {(requirements || []).length === 0 && !isAdding && (
@@ -378,6 +516,57 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
                 }}
               />
             </Group>
+            <MultiSelect
+              label="Linked Objectives"
+              placeholder="Select objectives this requirement supports"
+              value={Array.isArray(editingRequirement.linkedObjectives) ? editingRequirement.linkedObjectives : []}
+              onChange={(value) => setEditingRequirement({ ...editingRequirement, linkedObjectives: value })}
+              data={(objectives || []).map(obj => ({ value: obj.id, label: obj.title }))}
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
+            
+            {editingRequirement.validationFormula && (
+              <Card className="glass-card" p="md" radius="md">
+                <Text fw={500} c="white" mb="md">Validation Formula</Text>
+                <Stack gap="sm">
+                  <Box>
+                    <Text size="xs" c="dimmed" mb="xs">Formula</Text>
+                    <Text c="white" size="sm" ff="monospace" style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px' }}>
+                      {editingRequirement.validationFormula.formula}
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed" mb="xs">Variables</Text>
+                    <Stack gap="xs">
+                      {Object.entries(editingRequirement.validationFormula.variables || {}).map(([varName, varConfig]) => {
+                        const path = typeof varConfig === 'string' ? varConfig : varConfig.path;
+                        const unit = typeof varConfig === 'string' ? '' : varConfig.unit;
+                        return (
+                          <Group key={varName} gap="sm">
+                            <Badge size="xs" color="blue">{varName}</Badge>
+                            <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{path}</Text>
+                            {unit && <Badge size="xs" color="green">{unit}</Badge>}
+                          </Group>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed" mb="xs">Description</Text>
+                    <Text c="rgba(255,255,255,0.8)" size="sm">
+                      {editingRequirement.validationFormula.description}
+                    </Text>
+                  </Box>
+                </Stack>
+              </Card>
+            )}
             <Group>
               <Button onClick={saveEditedRequirement} variant="gradient" gradient={{ from: '#11998e', to: '#38ef7d' }}>
                 Save Changes
