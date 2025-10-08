@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Stack, Group, Button, Card, Text, Badge, ActionIcon, Title, Box, Grid, Collapse, Progress, NumberInput, Modal, TextInput, Textarea, Select, Tabs, Loader } from '@mantine/core';
-import { IconPlus, IconTrash, IconWand, IconRocket, IconChevronDown, IconChevronUp, IconSatellite, IconBolt, IconWeight, IconCurrencyDollar, IconEdit, IconEye, IconWorld, IconPlanet } from '@tabler/icons-react';
-import { DesignSolution, Objective, Requirement, Constraint, Component, ComponentType, Orbit, GroundStation } from '../types/models';
+import { IconPlus, IconTrash, IconWand, IconRocket, IconChevronDown, IconChevronUp, IconSatellite, IconBolt, IconWeight, IconCurrencyDollar, IconEdit, IconEye, IconWorld, IconPlanet, IconCheck, IconX, IconAlertTriangle } from '@tabler/icons-react';
+import { DesignSolution, Objective, Requirement, Constraint, Component, ComponentType, Orbit, GroundStation, ValidationResult } from '../types/models';
 import { missionAPI } from '../services/api';
+import { validateAllRequirements } from '../utils/requirementValidation';
 
 interface DesignSolutionsTabProps {
   missionId: string;
@@ -173,6 +174,27 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
     return { mass: totalMass, power: totalPowerGen - totalPowerCons, cost: totalCost, reliability: totalReliability * 100 };
   };
 
+  const getValidationResults = (solution: DesignSolution): ValidationResult[] => {
+    if (!requirements || requirements.length === 0) return [];
+    return validateAllRequirements(requirements, solution);
+  };
+
+  const getValidationIcon = (status: 'PASS' | 'FAIL' | 'ERROR') => {
+    switch (status) {
+      case 'PASS': return <IconCheck size={16} color="#51cf66" />;
+      case 'FAIL': return <IconX size={16} color="#ff6b6b" />;
+      case 'ERROR': return <IconAlertTriangle size={16} color="#ffd43b" />;
+    }
+  };
+
+  const getValidationColor = (status: 'PASS' | 'FAIL' | 'ERROR') => {
+    switch (status) {
+      case 'PASS': return 'green';
+      case 'FAIL': return 'red';
+      case 'ERROR': return 'yellow';
+    }
+  };
+
   return (
     <Stack gap="xl">
       <Group justify="space-between" align="center">
@@ -313,6 +335,77 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                     </Card>
                   </Grid.Col>
                 </Grid>
+
+                {/* Requirement Validation */}
+                {(() => {
+                  const validationResults = getValidationResults(solution);
+                  if (validationResults.length === 0) return null;
+                  
+                  const passCount = validationResults.filter(r => r.status === 'PASS').length;
+                  const failCount = validationResults.filter(r => r.status === 'FAIL').length;
+                  const errorCount = validationResults.filter(r => r.status === 'ERROR').length;
+                  
+                  return (
+                    <Card className="glass-card" p="md" radius="md">
+                      <Group justify="space-between" align="center" mb="md">
+                        <Group align="center" gap="sm">
+                          <Text fw={600} c="white" size="md">Requirement Validation</Text>
+                          <Badge 
+                            color={failCount > 0 ? 'red' : errorCount > 0 ? 'yellow' : 'green'} 
+                            size="sm"
+                          >
+                            {passCount}/{validationResults.length} PASS
+                          </Badge>
+                        </Group>
+                        <Group gap="xs">
+                          {passCount > 0 && (
+                            <Badge color="green" size="xs" leftSection={getValidationIcon('PASS')}>
+                              {passCount}
+                            </Badge>
+                          )}
+                          {failCount > 0 && (
+                            <Badge color="red" size="xs" leftSection={getValidationIcon('FAIL')}>
+                              {failCount}
+                            </Badge>
+                          )}
+                          {errorCount > 0 && (
+                            <Badge color="yellow" size="xs" leftSection={getValidationIcon('ERROR')}>
+                              {errorCount}
+                            </Badge>
+                          )}
+                        </Group>
+                      </Group>
+                      
+                      <Stack gap="xs">
+                        {validationResults.map((result) => {
+                          const requirement = requirements?.find(r => r.id === result.requirementId);
+                          return (
+                            <Group key={result.requirementId} justify="space-between" align="center">
+                              <Group align="center" gap="sm" style={{ flex: 1 }}>
+                                {getValidationIcon(result.status)}
+                                <Text size="sm" c="white" style={{ flex: 1 }}>
+                                  {requirement?.title || `Requirement ${result.requirementId}`}
+                                </Text>
+                              </Group>
+                              <Group gap="xs">
+                                {(result.status === 'PASS' || result.status === 'FAIL') && (
+                                  <Text size="xs" c={result.status === 'PASS' ? 'green' : 'red'}>
+                                    {result.formula}
+                                  </Text>
+                                )}
+                                {result.status === 'ERROR' && (
+                                  <Text size="xs" c="yellow" title={result.error}>
+                                    Error
+                                  </Text>
+                                )}
+                              </Group>
+                            </Group>
+                          );
+                        })}
+                      </Stack>
+                    </Card>
+                  );
+                })()}
 
                 <Collapse in={isExpanded}>
                   <Box mt="md">

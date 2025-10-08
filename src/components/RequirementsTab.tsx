@@ -379,6 +379,42 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
                         </Stack>
                       </Card>
                     )}
+                    
+                    {requirement.validationFormula && (
+                      <Card className="glass-card" p="md" radius="md" mt="md">
+                        <Text size="sm" fw={500} c="white" mb="xs">Validation Formula</Text>
+                        <Stack gap="sm">
+                          <Box>
+                            <Text size="xs" c="dimmed" mb="xs">Formula</Text>
+                            <Text c="white" size="sm" ff="monospace" style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px' }}>
+                              {requirement.validationFormula.formula}
+                            </Text>
+                          </Box>
+                          <Box>
+                            <Text size="xs" c="dimmed" mb="xs">Variables</Text>
+                            <Stack gap="xs">
+                              {Object.entries(requirement.validationFormula.variables || {}).map(([varName, varConfig]) => {
+                                const path = typeof varConfig === 'string' ? varConfig : varConfig.path;
+                                const unit = typeof varConfig === 'string' ? '' : varConfig.unit;
+                                return (
+                                  <Group key={varName} gap="sm">
+                                    <Badge size="xs" color="blue">{varName}</Badge>
+                                    <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{path}</Text>
+                                    {unit && <Badge size="xs" color="green">{unit}</Badge>}
+                                  </Group>
+                                );
+                              })}
+                            </Stack>
+                          </Box>
+                          <Box>
+                            <Text size="xs" c="dimmed" mb="xs">Description</Text>
+                            <Text c="rgba(255,255,255,0.8)" size="sm">
+                              {requirement.validationFormula.description}
+                            </Text>
+                          </Box>
+                        </Stack>
+                      </Card>
+                    )}
                   </Box>
                 </Collapse>
               </Stack>
@@ -495,6 +531,42 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
                 label: { color: 'white', fontWeight: 500 }
               }}
             />
+            
+            {editingRequirement.validationFormula && (
+              <Card className="glass-card" p="md" radius="md">
+                <Text fw={500} c="white" mb="md">Validation Formula</Text>
+                <Stack gap="sm">
+                  <Box>
+                    <Text size="xs" c="dimmed" mb="xs">Formula</Text>
+                    <Text c="white" size="sm" ff="monospace" style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px' }}>
+                      {editingRequirement.validationFormula.formula}
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed" mb="xs">Variables</Text>
+                    <Stack gap="xs">
+                      {Object.entries(editingRequirement.validationFormula.variables || {}).map(([varName, varConfig]) => {
+                        const path = typeof varConfig === 'string' ? varConfig : varConfig.path;
+                        const unit = typeof varConfig === 'string' ? '' : varConfig.unit;
+                        return (
+                          <Group key={varName} gap="sm">
+                            <Badge size="xs" color="blue">{varName}</Badge>
+                            <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{path}</Text>
+                            {unit && <Badge size="xs" color="green">{unit}</Badge>}
+                          </Group>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed" mb="xs">Description</Text>
+                    <Text c="rgba(255,255,255,0.8)" size="sm">
+                      {editingRequirement.validationFormula.description}
+                    </Text>
+                  </Box>
+                </Stack>
+              </Card>
+            )}
             <Group>
               <Button onClick={saveEditedRequirement} variant="gradient" gradient={{ from: '#11998e', to: '#38ef7d' }}>
                 Save Changes

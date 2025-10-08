@@ -162,6 +162,14 @@ Focus on specific EO parameters:
 - Downlink data rate - separate requirement
 - Power generation - separate requirement
 
+For each requirement, include a validation formula that can mathematically verify if a design solution meets the requirement. Use these JSONPath-compatible variable paths to access solution data:
+- spacecraft[0].components.find(c => c.type === payload).groundSampleDistance
+- spacecraft[0].components.find(c => c.type === payload).swathWidth  
+- orbit.altitude
+- spacecraft[0].components.find(c => c.type === power).powerGenerated
+- spacecraft[0].components.find(c => c.type === communications).dataRate
+- spacecraft[0].components.find(c => c.type === avionics).storageCapacity
+
 Return ONLY valid JSON array matching this schema:
 [{
   "id": "string (uuid)",
@@ -169,12 +177,22 @@ Return ONLY valid JSON array matching this schema:
   "type": "string (performance|functional|interface|environmental|operational)",
   "description": "string (concise specification for ONE specific parameter)",
   "priority": "string (high|medium|low)",
-  "linkedObjectives": ["array of objective IDs this requirement supports"]
+  "linkedObjectives": ["array of objective IDs this requirement supports"],
+  "validationFormula": {
+    "formula": "string (mathematical expression like 'nadir_gsd <= 10 && off_nadir_gsd <= 12')",
+    "variables": {
+      "variable_name": {
+        "path": "string (path to extract value from solution like 'spacecraft[0].components.find(c => c.type === payload).groundSampleDistance')",
+        "unit": "string (unit of measurement like 'm', 'kg', 'W', 'Mbps')"
+      }
+    },
+    "description": "string (brief description of what the formula validates)"
+  }
 }]`;
     const response = await llm.invoke(prompt);
     const requirements = JSON.parse(response.content.toString().replace(/```json\n?/g, '').replace(/```/g, ''));
     await coreFunctions.saveData(missionId, 1, { requirements });
-    return `Generated ${requirements.length} requirements and saved to mission.`;
+    return `Generated ${requirements.length} requirements with validation formulas and saved to mission.`;
   })
 });
 
