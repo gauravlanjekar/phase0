@@ -29,14 +29,7 @@ export const RequirementSchema = z.object({
   description: z.string(),
   priority: PrioritySchema,
   linkedObjectives: z.array(z.string()).optional(),
-  validationFormula: z.object({
-    formula: z.string(),
-    variables: z.record(z.string(), z.object({
-      path: z.string(),
-      unit: z.string()
-    })),
-    description: z.string().optional()
-  }).optional()
+  aiHelperText: z.string().optional()
 });
 
 export const ConstraintSchema = z.object({
@@ -207,6 +200,14 @@ export const GroundStationSchema = z.object({
   notes: z.string()
 });
 
+export const ValidationReportSchema = z.object({
+  requirementId: z.string(),
+  status: z.enum(['PASS', 'FAIL', 'ERROR']),
+  explanation: z.string(),
+  actualValue: z.string().optional(),
+  requiredValue: z.string().optional()
+});
+
 export const DesignSolutionSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -228,5 +229,6 @@ export const schemas = {
   SpacecraftSchema,
   OrbitSchema,
   GroundStationSchema,
-  DesignSolutionSchema
+  DesignSolutionSchema,
+  ValidationReportSchema
 };

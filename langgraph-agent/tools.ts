@@ -7,6 +7,7 @@ let RequirementSchema: any;
 let ConstraintSchema: any;
 let ComponentSchema: any;
 let DesignSolutionSchema: any;
+let ValidationReportSchema: any;
 
 try {
   const schemas = require('./schema-generator');
@@ -15,6 +16,7 @@ try {
   ConstraintSchema = schemas.ConstraintSchema;
   ComponentSchema = schemas.ComponentSchema;
   DesignSolutionSchema = schemas.DesignSolutionSchema;
+  ValidationReportSchema = schemas.ValidationReportSchema;
 } catch (error) {
   // Fallback schemas if generator fails
   ObjectiveSchema = z.any();
@@ -22,6 +24,7 @@ try {
   ConstraintSchema = z.any();
   ComponentSchema = z.any();
   DesignSolutionSchema = z.any();
+  ValidationReportSchema = z.any();
 }
 
 // Types
@@ -152,25 +155,9 @@ export const getRequirementsSchema = tool(
           description: { type: 'string', description: 'concise specification for ONE specific parameter' },
           priority: { type: 'string', enum: ['high', 'medium', 'low'] },
           linkedObjectives: { type: 'array', items: { type: 'string' } },
-          validationFormula: {
-            type: 'object',
-            properties: {
-              formula: { type: 'string', description: 'mathematical expression' },
-              variables: {
-                type: 'object',
-                description: 'Variable definitions with JSON paths for evaluation',
-                additionalProperties: {
-                  type: 'object',
-                  properties: {
-                    path: { type: 'string', description: 'JSON path to value in design solution (e.g., "designSolutions[0].spacecraft[0].components[0].mass")' },
-                    unit: { type: 'string', description: 'unit of measurement (e.g., "kg", "W", "m")' }
-                  },
-                  required: ['path', 'unit']
-                }
-              },
-              description: { type: 'string' }
-            },
-            required: ['formula', 'variables']
+          aiHelperText: { 
+            type: 'string', 
+            description: 'Plain text guidance for AI validation - describe HOW to check this requirement against design solutions. Do NOT use mathematical formulas. Example: "Check if spacecraft total mass is under 500kg by summing all component masses"' 
           }
         },
         required: ['id', 'title', 'type', 'description', 'priority']
@@ -179,7 +166,7 @@ export const getRequirementsSchema = tool(
   },
   {
     name: 'get_requirements_schema',
-    description: 'Get the JSON schema for mission requirements',
+    description: 'Get the JSON schema for mission requirements with AI helper text for validation guidance',
     schema: z.object({})
   }
 );
@@ -759,6 +746,71 @@ export const searchInternetTool = tool(
   }
 );
 
+
+
+// Flight Dynamics Tool
+export const flightDynamicsTool = tool(
+  async ({ altitude, inclination, eccentricity, swathWidth, dataRate }: {
+    altitude: number;
+    inclination: number;
+    eccentricity?: number;
+    swathWidth?: number;
+    dataRate?: number;
+  }) => {
+    const { FlightDynamicsCalculator } = await import('./flight-dynamics');
+    
+    const orbit = {
+      altitude,
+      inclination,
+      eccentricity: eccentricity || 0
+    };
+    
+    const results = FlightDynamicsCalculator.performCompleteAnalysis(
+      orbit,
+      swathWidth || 100,
+      dataRate || 100
+    );
+    
+    return {
+      success: true,
+      results,
+      summary: `Orbital analysis complete: Period=${results.orbitalPeriod.toFixed(1)}min, Velocity=${results.orbitalVelocity.toFixed(2)}km/s, Revisit=${results.revisitTime.toFixed(1)}hrs`
+    };
+  },
+  {
+    name: 'flight_dynamics',
+    description: 'Calculate orbital mechanics parameters including period, velocity, revisit time, eclipse duration, and coverage analysis',
+    schema: z.object({
+      altitude: z.number().describe('Orbital altitude in km'),
+      inclination: z.number().describe('Orbital inclination in degrees'),
+      eccentricity: z.number().optional().describe('Orbital eccentricity (default: 0)'),
+      swathWidth: z.number().optional().describe('Instrument swath width in km (default: 100)'),
+      dataRate: z.number().optional().describe('Data rate in Mbps (default: 100)')
+    })
+  }
+);
+
+// Validation Reports Tool
+export const saveValidationReportsTool = tool(
+  async ({ missionId, solutionId, reports }: { 
+    missionId: string; 
+    solutionId: string; 
+    reports: Array<{ requirementId: string; status: string; explanation: string; actualValue?: string; requiredValue?: string }>
+  }) => {
+    await coreFunctions.saveData(missionId, 4, { [`validation_${solutionId}`]: reports });
+    return `Saved ${reports.length} validation reports for solution ${solutionId}.`;
+  },
+  {
+    name: 'save_validation_reports',
+    description: 'Save validation reports for a design solution',
+    schema: z.object({
+      missionId: z.string(),
+      solutionId: z.string(),
+      reports: z.array(ValidationReportSchema)
+    })
+  }
+);
+
 // Export all tools as an array
 export const allTools = [
   getMissionDataTool,
@@ -784,5 +836,7 @@ export const allTools = [
   removeComponentTool,
 
   updateOrbitTool,
-  searchInternetTool
+  searchInternetTool,
+  flightDynamicsTool,
+  saveValidationReportsTool
 ];
