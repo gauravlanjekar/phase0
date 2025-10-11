@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Stack, Group, Button, Card, Text, Badge, ActionIcon, Title, Box, Grid, Collapse, Progress, NumberInput, Modal, TextInput, Textarea, Select, Tabs, Loader } from '@mantine/core';
 import { IconPlus, IconTrash, IconWand, IconRocket, IconChevronDown, IconChevronUp, IconSatellite, IconBolt, IconWeight, IconCurrencyDollar, IconEdit, IconEye, IconWorld, IconPlanet, IconCheck, IconX, IconAlertTriangle } from '@tabler/icons-react';
-import { DesignSolution, Objective, Requirement, Constraint, Component, ComponentType, Orbit, GroundStation, ValidationResult } from '../types/models';
+import { DesignSolution, Objective, Requirement, Constraint, Component, ComponentType, Orbit, GroundStation, ValidationResult, PayloadComponent, PowerComponent, AvionicsComponent } from '../types/models';
 import { missionAPI } from '../services/api';
 import { validateAllRequirements } from '../utils/requirementValidation';
 
@@ -546,6 +546,18 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                                               <Text c="white" size="xs">{component.groundSampleDistance} m</Text>
                                             </Grid.Col>
                                           )}
+                                          {(component as any).groundSampleDistance_multispectral && (
+                                            <Grid.Col span={3}>
+                                              <Text size="xs" c="dimmed">GSD (Multi)</Text>
+                                              <Text c="white" size="xs">{(component as any).groundSampleDistance_multispectral} m</Text>
+                                            </Grid.Col>
+                                          )}
+                                          {(component as any).signalToNoiseRatio && (
+                                            <Grid.Col span={3}>
+                                              <Text size="xs" c="dimmed">SNR</Text>
+                                              <Text c="white" size="xs">{(component as any).signalToNoiseRatio}</Text>
+                                            </Grid.Col>
+                                          )}
                                           {component.swathWidth && (
                                             <Grid.Col span={3}>
                                               <Text size="xs" c="dimmed">Swath Width</Text>
@@ -858,7 +870,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                   value={editingComponent.component.name}
                   onChange={(e) => setEditingComponent({
                     ...editingComponent,
-                    component: { ...editingComponent.component, name: e.target.value }
+                    component: { ...editingComponent.component, name: e.target.value } as Component
                   })}
                   styles={{
                     input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -872,7 +884,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                   value={editingComponent.component.type}
                   onChange={(value: string | null) => setEditingComponent({
                     ...editingComponent,
-                    component: { ...editingComponent.component, type: value as ComponentType }
+                    component: { ...editingComponent.component, type: value as ComponentType } as Component
                   })}
                   data={[
                     { value: 'payload', label: 'Payload' },
@@ -899,7 +911,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                   value={editingComponent.component.mass}
                   onChange={(value) => setEditingComponent({
                     ...editingComponent,
-                    component: { ...editingComponent.component, mass: Number(value) || 0 }
+                    component: { ...editingComponent.component, mass: Number(value) || 0 } as Component
                   })}
                   styles={{
                     input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -913,7 +925,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                   value={editingComponent.component.powerConsumed}
                   onChange={(value) => setEditingComponent({
                     ...editingComponent,
-                    component: { ...editingComponent.component, powerConsumed: Number(value) || 0 }
+                    component: { ...editingComponent.component, powerConsumed: Number(value) || 0 } as Component
                   })}
                   styles={{
                     input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -927,7 +939,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                   value={editingComponent.component.powerGenerated}
                   onChange={(value) => setEditingComponent({
                     ...editingComponent,
-                    component: { ...editingComponent.component, powerGenerated: Number(value) || 0 }
+                    component: { ...editingComponent.component, powerGenerated: Number(value) || 0 } as Component
                   })}
                   styles={{
                     input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -944,7 +956,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                   value={editingComponent.component.cost}
                   onChange={(value) => setEditingComponent({
                     ...editingComponent,
-                    component: { ...editingComponent.component, cost: Number(value) || 0 }
+                    component: { ...editingComponent.component, cost: Number(value) || 0 } as Component
                   })}
                   styles={{
                     input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -960,7 +972,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                   max={9}
                   onChange={(value) => setEditingComponent({
                     ...editingComponent,
-                    component: { ...editingComponent.component, trl: Number(value) || 9 }
+                    component: { ...editingComponent.component, trl: Number(value) || 9 } as Component
                   })}
                   styles={{
                     input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -977,7 +989,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                   step={0.01}
                   onChange={(value) => setEditingComponent({
                     ...editingComponent,
-                    component: { ...editingComponent.component, reliability: Number(value) || 1 }
+                    component: { ...editingComponent.component, reliability: Number(value) || 1 } as Component
                   })}
                   styles={{
                     input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -998,7 +1010,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       step={0.1}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, focalLength: Number(value) || 0 }
+                        component: { ...editingComponent.component, focalLength: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1013,7 +1025,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       step={0.01}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, apertureDiameter: Number(value) || 0 }
+                        component: { ...editingComponent.component, apertureDiameter: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1028,7 +1040,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       step={0.1}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, groundSampleDistance: Number(value) || 0 }
+                        component: { ...editingComponent.component, groundSampleDistance: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1042,7 +1054,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       value={editingComponent.component.swathWidth || 0}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, swathWidth: Number(value) || 0 }
+                        component: { ...editingComponent.component, swathWidth: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1064,7 +1076,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       value={editingComponent.component.batteryCapacity || 0}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, batteryCapacity: Number(value) || 0 }
+                        component: { ...editingComponent.component, batteryCapacity: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1079,7 +1091,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       step={0.1}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, solarArrayArea: Number(value) || 0 }
+                        component: { ...editingComponent.component, solarArrayArea: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1095,7 +1107,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       max={100}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, solarArrayEfficiency: Number(value) || 0 }
+                        component: { ...editingComponent.component, solarArrayEfficiency: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1117,7 +1129,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       value={editingComponent.component.processingPower || 0}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, processingPower: Number(value) || 0 }
+                        component: { ...editingComponent.component, processingPower: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1131,7 +1143,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       value={editingComponent.component.memoryCapacity || 0}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, memoryCapacity: Number(value) || 0 }
+                        component: { ...editingComponent.component, memoryCapacity: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1145,7 +1157,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       value={editingComponent.component.storageCapacity || 0}
                       onChange={(value) => setEditingComponent({
                         ...editingComponent,
-                        component: { ...editingComponent.component, storageCapacity: Number(value) || 0 }
+                        component: { ...editingComponent.component, storageCapacity: Number(value) || 0 } as Component
                       })}
                       styles={{
                         input: { backgroundColor: 'rgba(255, 255, 255, 0.1)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white' },
@@ -1162,7 +1174,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
               value={editingComponent.component.description || ''}
               onChange={(e) => setEditingComponent({
                 ...editingComponent,
-                component: { ...editingComponent.component, description: e.target.value }
+                component: { ...editingComponent.component, description: e.target.value } as Component
               })}
               rows={3}
               styles={{

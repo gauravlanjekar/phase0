@@ -265,7 +265,7 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
         {(requirements || []).map((requirement, index) => {
           const isExpanded = expandedRequirements.has(requirement.id);
           const linkedObjs = (requirement.linkedObjectives && Array.isArray(requirement.linkedObjectives)) 
-            ? (objectives || []).filter(obj => requirement.linkedObjectives.includes(obj.id))
+            ? (objectives || []).filter(obj => requirement.linkedObjectives!.includes(obj.id))
             : [];
           
           return (
@@ -393,25 +393,23 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
                           <Box>
                             <Text size="xs" c="dimmed" mb="xs">Variables</Text>
                             <Stack gap="xs">
-                              {Object.entries(requirement.validationFormula.variables || {}).map(([varName, varConfig]) => {
-                                const path = typeof varConfig === 'string' ? varConfig : varConfig.path;
-                                const unit = typeof varConfig === 'string' ? '' : varConfig.unit;
-                                return (
-                                  <Group key={varName} gap="sm">
-                                    <Badge size="xs" color="blue">{varName}</Badge>
-                                    <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{path}</Text>
-                                    {unit && <Badge size="xs" color="green">{unit}</Badge>}
-                                  </Group>
-                                );
-                              })}
+                              {Object.entries(requirement.validationFormula.variables || {}).map(([varName, varConfig]) => (
+                                <Group key={varName} gap="sm">
+                                  <Badge size="xs" color="blue">{varName}</Badge>
+                                  <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{varConfig.path}</Text>
+                                  <Badge size="xs" color="green">{varConfig.unit}</Badge>
+                                </Group>
+                              ))}
                             </Stack>
                           </Box>
-                          <Box>
-                            <Text size="xs" c="dimmed" mb="xs">Description</Text>
-                            <Text c="rgba(255,255,255,0.8)" size="sm">
-                              {requirement.validationFormula.description}
-                            </Text>
-                          </Box>
+                          {requirement.validationFormula.description && (
+                            <Box>
+                              <Text size="xs" c="dimmed" mb="xs">Description</Text>
+                              <Text c="rgba(255,255,255,0.8)" size="sm">
+                                {requirement.validationFormula.description}
+                              </Text>
+                            </Box>
+                          )}
                         </Stack>
                       </Card>
                     )}
@@ -545,25 +543,23 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
                   <Box>
                     <Text size="xs" c="dimmed" mb="xs">Variables</Text>
                     <Stack gap="xs">
-                      {Object.entries(editingRequirement.validationFormula.variables || {}).map(([varName, varConfig]) => {
-                        const path = typeof varConfig === 'string' ? varConfig : varConfig.path;
-                        const unit = typeof varConfig === 'string' ? '' : varConfig.unit;
-                        return (
-                          <Group key={varName} gap="sm">
-                            <Badge size="xs" color="blue">{varName}</Badge>
-                            <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{path}</Text>
-                            {unit && <Badge size="xs" color="green">{unit}</Badge>}
-                          </Group>
-                        );
-                      })}
+                      {Object.entries(editingRequirement.validationFormula.variables || {}).map(([varName, varConfig]) => (
+                        <Group key={varName} gap="sm">
+                          <Badge size="xs" color="blue">{varName}</Badge>
+                          <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{varConfig.path}</Text>
+                          <Badge size="xs" color="green">{varConfig.unit}</Badge>
+                        </Group>
+                      ))}
                     </Stack>
                   </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed" mb="xs">Description</Text>
-                    <Text c="rgba(255,255,255,0.8)" size="sm">
-                      {editingRequirement.validationFormula.description}
-                    </Text>
-                  </Box>
+                  {editingRequirement.validationFormula.description && (
+                    <Box>
+                      <Text size="xs" c="dimmed" mb="xs">Description</Text>
+                      <Text c="rgba(255,255,255,0.8)" size="sm">
+                        {editingRequirement.validationFormula.description}
+                      </Text>
+                    </Box>
+                  )}
                 </Stack>
               </Card>
             )}
