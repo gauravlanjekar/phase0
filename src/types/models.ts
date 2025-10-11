@@ -43,14 +43,7 @@ export interface Requirement {
   description: string;
   priority: Priority;
   linkedObjectives?: string[]; // Array of objective IDs
-  validationFormula?: {
-    formula: string;
-    variables: Record<string, {
-      path: string;
-      unit: string;
-    }>;
-    description?: string;
-  };
+  aiHelperText?: string;
 }
 
 export interface Constraint {
@@ -218,6 +211,14 @@ export interface GroundStation {
   maxDataRate: number; // Mbps
   elevationMask: number; // degrees
   notes: string;
+}
+
+export interface ValidationReport {
+  requirementId: string;
+  status: 'PASS' | 'FAIL' | 'ERROR';
+  explanation: string;
+  actualValue?: string;
+  requiredValue?: string;
 }
 
 export interface ValidationResult {

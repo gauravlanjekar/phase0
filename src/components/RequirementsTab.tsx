@@ -27,7 +27,8 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
     type: 'functional' as RequirementType,
     description: '',
     priority: 'medium' as Priority,
-    linkedObjectives: [] as string[]
+    linkedObjectives: [] as string[],
+    aiHelperText: ''
   });
 
   const addRequirement = () => {
@@ -41,9 +42,10 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
       newRequirement.priority
     );
     requirement.linkedObjectives = newRequirement.linkedObjectives;
+    requirement.aiHelperText = newRequirement.aiHelperText;
     
     onRequirementsChange([...(requirements || []), requirement]);
-    setNewRequirement({ title: '', type: 'functional', description: '', priority: 'medium', linkedObjectives: [] });
+    setNewRequirement({ title: '', type: 'functional', description: '', priority: 'medium', linkedObjectives: [], aiHelperText: '' });
     setIsAdding(false);
   };
 
@@ -249,6 +251,21 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
                 label: { color: 'white', fontWeight: 500 }
               }}
             />
+            <Textarea
+              label="AI Helper Text (Optional)"
+              placeholder="Provide guidance for AI validation, e.g., 'Check if spacecraft mass is under 100kg by summing component masses'"
+              value={newRequirement.aiHelperText}
+              onChange={(e) => setNewRequirement({ ...newRequirement, aiHelperText: e.target.value })}
+              rows={3}
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
             <Group>
               <Button onClick={addRequirement} variant="gradient" gradient={{ from: '#11998e', to: '#38ef7d' }}>
                 Save Requirement
@@ -380,37 +397,12 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
                       </Card>
                     )}
                     
-                    {requirement.validationFormula && (
+                    {requirement.aiHelperText && (
                       <Card className="glass-card" p="md" radius="md" mt="md">
-                        <Text size="sm" fw={500} c="white" mb="xs">Validation Formula</Text>
-                        <Stack gap="sm">
-                          <Box>
-                            <Text size="xs" c="dimmed" mb="xs">Formula</Text>
-                            <Text c="white" size="sm" ff="monospace" style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px' }}>
-                              {requirement.validationFormula.formula}
-                            </Text>
-                          </Box>
-                          <Box>
-                            <Text size="xs" c="dimmed" mb="xs">Variables</Text>
-                            <Stack gap="xs">
-                              {Object.entries(requirement.validationFormula.variables || {}).map(([varName, varConfig]) => (
-                                <Group key={varName} gap="sm">
-                                  <Badge size="xs" color="blue">{varName}</Badge>
-                                  <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{varConfig.path}</Text>
-                                  <Badge size="xs" color="green">{varConfig.unit}</Badge>
-                                </Group>
-                              ))}
-                            </Stack>
-                          </Box>
-                          {requirement.validationFormula.description && (
-                            <Box>
-                              <Text size="xs" c="dimmed" mb="xs">Description</Text>
-                              <Text c="rgba(255,255,255,0.8)" size="sm">
-                                {requirement.validationFormula.description}
-                              </Text>
-                            </Box>
-                          )}
-                        </Stack>
+                        <Text size="sm" fw={500} c="white" mb="xs">AI Helper Text</Text>
+                        <Text c="rgba(255,255,255,0.8)" size="sm" style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '12px', borderRadius: '6px' }}>
+                          {requirement.aiHelperText}
+                        </Text>
                       </Card>
                     )}
                   </Box>
@@ -530,39 +522,21 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
               }}
             />
             
-            {editingRequirement.validationFormula && (
-              <Card className="glass-card" p="md" radius="md">
-                <Text fw={500} c="white" mb="md">Validation Formula</Text>
-                <Stack gap="sm">
-                  <Box>
-                    <Text size="xs" c="dimmed" mb="xs">Formula</Text>
-                    <Text c="white" size="sm" ff="monospace" style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '8px', borderRadius: '4px' }}>
-                      {editingRequirement.validationFormula.formula}
-                    </Text>
-                  </Box>
-                  <Box>
-                    <Text size="xs" c="dimmed" mb="xs">Variables</Text>
-                    <Stack gap="xs">
-                      {Object.entries(editingRequirement.validationFormula.variables || {}).map(([varName, varConfig]) => (
-                        <Group key={varName} gap="sm">
-                          <Badge size="xs" color="blue">{varName}</Badge>
-                          <Text c="rgba(255,255,255,0.7)" size="xs" ff="monospace">{varConfig.path}</Text>
-                          <Badge size="xs" color="green">{varConfig.unit}</Badge>
-                        </Group>
-                      ))}
-                    </Stack>
-                  </Box>
-                  {editingRequirement.validationFormula.description && (
-                    <Box>
-                      <Text size="xs" c="dimmed" mb="xs">Description</Text>
-                      <Text c="rgba(255,255,255,0.8)" size="sm">
-                        {editingRequirement.validationFormula.description}
-                      </Text>
-                    </Box>
-                  )}
-                </Stack>
-              </Card>
-            )}
+            <Textarea
+              label="AI Helper Text (Optional)"
+              placeholder="Provide guidance for AI validation, e.g., 'Check if spacecraft mass is under 100kg by summing component masses'"
+              value={editingRequirement.aiHelperText || ''}
+              onChange={(e) => setEditingRequirement({ ...editingRequirement, aiHelperText: e.target.value })}
+              rows={3}
+              styles={{
+                input: {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: 'white'
+                },
+                label: { color: 'white', fontWeight: 500 }
+              }}
+            />
             <Group>
               <Button onClick={saveEditedRequirement} variant="gradient" gradient={{ from: '#11998e', to: '#38ef7d' }}>
                 Save Changes

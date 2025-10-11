@@ -95,7 +95,8 @@ Use get_objectives_schema and save_objectives tools.`;
   generateRequirements: async (missionId: string, objectives: Objective[]): Promise<GenerationResponse<Requirement>> => {
     try {
       const prompt = `Generate 10-12 focused technical requirements for this Earth Observation mission.
-Include validation formulas for key parameters like GSD, swath width, revisit time.
+For each requirement, include aiHelperText with plain text guidance on how to validate it against design solutions.
+Do NOT use mathematical formulas - use descriptive text like "Check if ground sample distance is better than 5m by examining payload component specifications".
 Use get_requirements_schema and save_requirements tools.`;
       
       const response = await missionAPI.sendChatMessage(missionId, prompt);
@@ -153,6 +154,32 @@ This creates a complete early-phase mission analysis baseline.`;
     } catch (error) {
       console.error('Failed to generate baseline solution:', error);
       return { success: false, error: (error as Error).message };
+    }
+  },
+
+  // Validate solution
+  validateSolution: async (missionId: string, solutionId: string, requirements: Requirement[]): Promise<{ success: boolean; reports?: any[]; error?: string }> => {
+    try {
+      const reqText = requirements.map(r => `${r.title}: ${r.description}${r.aiHelperText ? ` (Helper: ${r.aiHelperText})` : ''}`).join('\n');
+      const prompt = `Validate design solution ${solutionId} against these requirements:\n\n${reqText}\n\nSteps:\n1. Use get_mission_data to access the solution details\n2. For each requirement, validate using the helper text guidance\n3. Use save_validation_reports to persist the results\n\nProvide validation status (PASS/FAIL/ERROR), explanation, actual value, and required value for each requirement.`;
+      
+      const response = await missionAPI.sendChatMessage(missionId, prompt);
+      return { success: true, reports: [] };
+    } catch (error) {
+      console.error('Failed to validate solution:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  },
+
+  // Get validation reports
+  getValidationReports: async (missionId: string, solutionId: string): Promise<any[]> => {
+    try {
+      const response = await fetch(`${API_BASE}/missions/${missionId}/tabs/4`);
+      const data = await response.json();
+      return data[`validation_${solutionId}`] || [];
+    } catch (error) {
+      console.error('Failed to get validation reports:', error);
+      return [];
     }
   }
 };
