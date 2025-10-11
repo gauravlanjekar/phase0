@@ -79,12 +79,12 @@ export const missionAPI = {
   // Generate objectives
   generateObjectives: async (missionId: string, brief: string): Promise<GenerationResponse<Objective>> => {
     try {
-      const response = await fetch(`${LANGGRAPH_BASE}/generate-objectives`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ missionId, brief })
-      });
-      return response.json();
+      const prompt = `Generate 4 realistic mission objectives for this Earth Observation mission: "${brief}"
+Make objectives specific, measurable, and achievable for early mission analysis.
+Use get_objectives_schema and save_objectives tools.`;
+      
+      const response = await missionAPI.sendChatMessage(missionId, prompt);
+      return { success: true, message: response.response };
     } catch (error) {
       console.error('Failed to auto-generate objectives:', error);
       return { success: false, error: (error as Error).message };
@@ -94,12 +94,12 @@ export const missionAPI = {
   // Generate requirements
   generateRequirements: async (missionId: string, objectives: Objective[]): Promise<GenerationResponse<Requirement>> => {
     try {
-      const response = await fetch(`${LANGGRAPH_BASE}/generate-requirements`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ missionId, objectives })
-      });
-      return response.json();
+      const prompt = `Generate 10-12 focused technical requirements for this Earth Observation mission.
+Include validation formulas for key parameters like GSD, swath width, revisit time.
+Use get_requirements_schema and save_requirements tools.`;
+      
+      const response = await missionAPI.sendChatMessage(missionId, prompt);
+      return { success: true, message: response.response };
     } catch (error) {
       console.error('Failed to generate requirements:', error);
       return { success: false, error: (error as Error).message };
@@ -109,12 +109,12 @@ export const missionAPI = {
   // Generate constraints
   generateConstraints: async (missionId: string, objectives: Objective[] = [], requirements: Requirement[] = []): Promise<GenerationResponse<Constraint>> => {
     try {
-      const response = await fetch(`${LANGGRAPH_BASE}/generate-constraints`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ missionId, objectives, requirements })
-      });
-      return response.json();
+      const prompt = `Generate 6-8 mission constraints covering budget, schedule, technical, and regulatory limitations.
+Focus on early mission analysis constraints that drive design decisions.
+Use get_constraints_schema and save_constraints tools.`;
+      
+      const response = await missionAPI.sendChatMessage(missionId, prompt);
+      return { success: true, message: response.response };
     } catch (error) {
       console.error('Failed to generate constraints:', error);
       return { success: false, error: (error as Error).message };
@@ -124,12 +124,11 @@ export const missionAPI = {
   // Generate design solutions
   generateDesignSolutions: async (missionId: string, objectives: Objective[] = [], requirements: Requirement[] = [], constraints: Constraint[] = []): Promise<GenerationResponse<DesignSolution>> => {
     try {
-      const response = await fetch(`${LANGGRAPH_BASE}/generate-design-solutions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ missionId, objectives, requirements, constraints })
-      });
-      return response.json();
+      const prompt = `Generate 1 complete spacecraft design solution with ALL 8 standard components (payload, power, avionics, adcs, communications, structure, thermal, propulsion), sun-synchronous orbit, and ground stations.
+Use get_solutions_schema and save_solutions tools.`;
+      
+      const response = await missionAPI.sendChatMessage(missionId, prompt);
+      return { success: true, message: response.response };
     } catch (error) {
       console.error('Failed to generate design solutions:', error);
       return { success: false, error: (error as Error).message };
@@ -139,12 +138,18 @@ export const missionAPI = {
   // Generate baseline solution
   generateBaselineSolution: async (missionId: string, brief: string): Promise<GenerationResponse<DesignSolution>> => {
     try {
-      const response = await fetch(`${LANGGRAPH_BASE}/generate-baseline-solution`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ missionId, brief })
-      });
-      return response.json();
+      const prompt = `Generate a complete baseline mission design for: "${brief}"
+
+Generate ALL mission elements in sequence:
+1. OBJECTIVES: Use get_objectives_schema and save_objectives tools
+2. REQUIREMENTS: Use get_requirements_schema and save_requirements tools
+3. CONSTRAINTS: Use get_constraints_schema and save_constraints tools
+4. DESIGN SOLUTIONS: Use get_solutions_schema and save_solutions tools
+
+This creates a complete early-phase mission analysis baseline.`;
+      
+      const response = await missionAPI.sendChatMessage(missionId, prompt);
+      return { success: true, message: response.response };
     } catch (error) {
       console.error('Failed to generate baseline solution:', error);
       return { success: false, error: (error as Error).message };

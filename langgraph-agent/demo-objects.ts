@@ -1,7 +1,5 @@
 // Demo: How objects are generated from TypeScript models
-import { generateZodSchemas } from './schema-generator';
-
-const zodSchemas = generateZodSchemas();
+import { ObjectiveSchema, RequirementSchema, ConstraintSchema } from './schema-generator';
 
 // Create sample objects that match the TypeScript interfaces
 const sampleObjective = {
@@ -46,21 +44,21 @@ const sampleConstraint = {
 console.log('=== OBJECT VALIDATION DEMO ===\n');
 
 try {
-  const validObjective = zodSchemas.objective.parse(sampleObjective);
+  const validObjective = ObjectiveSchema.parse(sampleObjective);
   console.log('✓ Valid Objective:', validObjective);
 } catch (error) {
   console.error('✗ Invalid Objective:', error);
 }
 
 try {
-  const validRequirement = zodSchemas.requirement.parse(sampleRequirement);
+  const validRequirement = RequirementSchema.parse(sampleRequirement);
   console.log('✓ Valid Requirement:', validRequirement);
 } catch (error) {
   console.error('✗ Invalid Requirement:', error);
 }
 
 try {
-  const validConstraint = zodSchemas.constraint.parse(sampleConstraint);
+  const validConstraint = ConstraintSchema.parse(sampleConstraint);
   console.log('✓ Valid Constraint:', validConstraint);
 } catch (error) {
   console.error('✗ Invalid Constraint:', error);
@@ -70,7 +68,7 @@ try {
 console.log('\n=== TESTING VALIDATION ===');
 try {
   const invalidObjective = { id: 'test', title: 123 }; // title should be string
-  zodSchemas.objective.parse(invalidObjective);
+  ObjectiveSchema.parse(invalidObjective);
 } catch (error) {
   console.log('✓ Validation caught invalid data:', (error as Error).message);
 }

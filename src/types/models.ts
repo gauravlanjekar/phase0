@@ -33,7 +33,7 @@ export interface Objective {
   priority: Priority;
   category: string;
   stakeholders: string[];
-  notes: string;
+  notes?: string;
 }
 
 export interface Requirement {
@@ -42,14 +42,14 @@ export interface Requirement {
   type: RequirementType;
   description: string;
   priority: Priority;
-  linkedObjectives: string[]; // Array of objective IDs
+  linkedObjectives?: string[]; // Array of objective IDs
   validationFormula?: {
     formula: string;
     variables: Record<string, {
       path: string;
       unit: string;
     }>;
-    description: string;
+    description?: string;
   };
 }
 
@@ -64,10 +64,11 @@ export interface Constraint {
   };
   priority: Priority;
   rationale: string;
-  is_negotiable: boolean;
+  is_negotiable?: boolean;
 }
 
-export interface Component {
+// Base component interface
+export interface BaseComponent {
   id: string;
   name: string;
   type: ComponentType;
@@ -84,31 +85,101 @@ export interface Component {
   notes?: string;
   description?: string;
   volume?: number; // Liters
-  
-  // Payload-specific properties
+}
+
+// Payload component
+export interface PayloadComponent extends BaseComponent {
+  type: 'payload';
   focalLength?: number; // meters
   apertureDiameter?: number; // meters
   groundSampleDistance?: number; // meters
+  groundSampleDistance_multispectral?: number; // meters
   swathWidth?: number; // km
   spectralBands?: SpectralBand[];
   detectorType?: string;
   radiometricResolution?: number; // bits
   dataRate?: number; // Mbps
-  
-  // Power system properties
+  signalToNoiseRatio?: number;
+  geolocationAccuracy?: number; // meters
+  pointingAccuracy?: number; // degrees
+  pointingStability?: number; // degrees/second
+}
+
+// Power component
+export interface PowerComponent extends BaseComponent {
+  type: 'power';
   batteryCapacity?: number; // Wh
   solarArrayArea?: number; // m²
   solarArrayEfficiency?: number; // %
   batteryType?: string;
   chargeCycles?: number;
-  
-  // Avionics properties
+}
+
+// Avionics component
+export interface AvionicsComponent extends BaseComponent {
+  type: 'avionics';
   processingPower?: number; // MIPS
   memoryCapacity?: number; // GB
   storageCapacity?: number; // GB
   redundancy?: string;
   operatingSystem?: string;
 }
+
+// ADCS component
+export interface AdcsComponent extends BaseComponent {
+  type: 'adcs';
+  pointingAccuracy?: number; // degrees
+  pointingStability?: number; // degrees/second
+  attitudeKnowledge?: number; // degrees
+  slew_rate?: number; // degrees/second
+}
+
+// Communications component
+export interface CommunicationsComponent extends BaseComponent {
+  type: 'communications';
+  dataRate?: number; // Mbps
+  frequency?: number; // GHz
+  antennaType?: string;
+  antennaGain?: number; // dBi
+  transmitPower?: number; // Watts
+}
+
+// Structure component
+export interface StructureComponent extends BaseComponent {
+  type: 'structure';
+  material?: string;
+  stiffness?: number; // N/m
+  dampingRatio?: number;
+}
+
+// Thermal component
+export interface ThermalComponent extends BaseComponent {
+  type: 'thermal';
+  heatDissipation?: number; // Watts
+  thermalConductivity?: number; // W/mK
+  operatingTemperatureRange?: [number, number]; // [min, max] Celsius
+}
+
+// Propulsion component
+export interface PropulsionComponent extends BaseComponent {
+  type: 'propulsion';
+  propellantType?: string;
+  specificImpulse?: number; // seconds
+  thrust?: number; // Newtons
+  propellantMass?: number; // kg
+  deltaV?: number; // m/s
+}
+
+// Union type for all components
+export type Component = 
+  | PayloadComponent 
+  | PowerComponent 
+  | AvionicsComponent 
+  | AdcsComponent 
+  | CommunicationsComponent 
+  | StructureComponent 
+  | ThermalComponent 
+  | PropulsionComponent;
 
 export interface SpectralBand {
   name: string;
@@ -196,8 +267,7 @@ export const createObjective = (
   description,
   priority,
   category: 'earth_observation',
-  stakeholders: [],
-  notes: ''
+  stakeholders: []
 });
 
 export const createRequirement = (
@@ -211,8 +281,7 @@ export const createRequirement = (
   title,
   type,
   description,
-  priority,
-  linkedObjectives: []
+  priority
 });
 
 export const createConstraint = (
@@ -227,6 +296,42 @@ export const createConstraint = (
   constraint_type: constraintType,
   constraint,
   priority,
-  rationale: '',
-  is_negotiable: false
+  rationale: ''
+});
+
+// Component factory functions
+export const createPayloadComponent = (
+  id: string,
+  name: string,
+  mass: number,
+  powerConsumed: number,
+  cost: number
+): PayloadComponent => ({
+  id,
+  name,
+  type: 'payload',
+  mass,
+  powerGenerated: 0,
+  powerConsumed,
+  cost,
+  trl: 6,
+  reliability: 0.9
+});
+
+export const createPowerComponent = (
+  id: string,
+  name: string,
+  mass: number,
+  powerGenerated: number,
+  cost: number
+): PowerComponent => ({
+  id,
+  name,
+  type: 'power',
+  mass,
+  powerGenerated,
+  powerConsumed: 0,
+  cost,
+  trl: 7,
+  reliability: 0.9
 });

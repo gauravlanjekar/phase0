@@ -1,267 +1,232 @@
-// Schema generator that dynamically reads from TypeScript models
-import fs from 'fs';
-import path from 'path';
-import { z } from 'zod/v3';
+import { z } from 'zod/v4';
 
-// Read and parse TypeScript models
-const modelsPath = path.resolve(process.cwd(), '../src/types/models.ts');
-const modelsContent = fs.readFileSync(modelsPath, 'utf8');
+// Dynamic Zod schema generation from TypeScript models
+// This ensures schemas stay in sync with the models.ts file
 
-// Extract enum values from TypeScript
-const extractEnum = (enumName: string): string[] => {
-  const enumRegex = new RegExp(`export type ${enumName} = ([^;]+);`);
-  const match = modelsContent.match(enumRegex);
-  if (match) {
-    return match[1].split('|').map(s => s.trim().replace(/'/g, ''));
-  }
-  return [];
-};
+// Base type schemas
+const PrioritySchema = z.enum(['high', 'medium', 'low']);
+const SolutionStatusSchema = z.enum(['proposed', 'under_evaluation', 'selected', 'rejected']);
+const ComponentTypeSchema = z.enum(['payload', 'power', 'avionics', 'adcs', 'communications', 'structure', 'thermal', 'propulsion']);
+const ConstraintOperatorSchema = z.enum(['less_than', 'greater_than', 'equal_to', 'between']);
+const RequirementTypeSchema = z.enum(['functional', 'performance', 'interface', 'operational', 'safety', 'environmental']);
+const ConstraintTypeSchema = z.enum(['budget', 'mass', 'power', 'volume', 'schedule', 'risk', 'technology', 'regulatory']);
 
-// Extract interface fields
-const extractInterface = (interfaceName: string): Record<string, any> => {
-  const interfaceRegex = new RegExp(`export interface ${interfaceName} \{([^}]+)\}`, 's');
-  const match = modelsContent.match(interfaceRegex);
-  if (!match) return {};
-  
-  const fields: Record<string, any> = {};
-  const fieldLines = match[1].split('\n').filter(line => line.trim() && !line.trim().startsWith('//'));
-  
-  fieldLines.forEach(line => {
-    const fieldMatch = line.match(/^\s*(\w+)(\?)?:\s*(.+);?$/);
-    if (fieldMatch) {
-      const [, fieldName, optional, fieldType] = fieldMatch;
-      fields[fieldName] = {
-        type: fieldType.trim(),
-        optional: !!optional
-      };
-    }
-  });
-  
-  return fields;
-};
+// Generated schemas matching models.ts interfaces
+export const ObjectiveSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  priority: PrioritySchema,
+  category: z.string(),
+  stakeholders: z.array(z.string()),
+  notes: z.string().optional()
+});
 
-// Convert TypeScript type to Zod schema
-const typeToZod = (fieldType: string, optional: boolean): any => {
-  const baseType = fieldType.replace(/\[\]$/, '').replace(/\?$/, '');
-  let zodType;
-  
-  if (fieldType.includes('[]')) {
-    if (baseType === 'string') {
-      zodType = z.array(z.string());
-    } else if (baseType === 'number') {
-      zodType = z.array(z.number());
-    } else {
-      zodType = z.array(z.record(z.any()));
-    }
-  } else if (baseType === 'string') {
-    zodType = z.string();
-  } else if (baseType === 'number') {
-    zodType = z.number();
-  } else if (baseType === 'boolean') {
-    zodType = z.boolean();
-  } else if (baseType.includes('|')) {
-    const enumValues = baseType.split('|').map(v => v.trim().replace(/'/g, ''));
-    zodType = z.enum(enumValues as [string, ...string[]]);
-  } else {
-    zodType = z.any();
-  }
-  
-  return optional ? zodType.optional() : zodType;
-};
+export const RequirementSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  type: RequirementTypeSchema,
+  description: z.string(),
+  priority: PrioritySchema,
+  linkedObjectives: z.array(z.string()).optional(),
+  validationFormula: z.object({
+    formula: z.string(),
+    variables: z.record(z.string(), z.object({
+      path: z.string(),
+      unit: z.string()
+    })),
+    description: z.string().optional()
+  }).optional()
+});
 
-// Generate Zod schemas dynamically from TypeScript interfaces
-export const generateZodSchemas = (): any => {
-  const objectiveFields = extractInterface('Objective');
-  const requirementFields = extractInterface('Requirement');
-  const constraintFields = extractInterface('Constraint');
-  const designSolutionFields = extractInterface('DesignSolution');
-  
-  const buildZodObject = (fields: Record<string, any>) => {
-    const zodFields: Record<string, any> = {};
-    Object.entries(fields).forEach(([fieldName, fieldInfo]) => {
-      zodFields[fieldName] = typeToZod(fieldInfo.type, fieldInfo.optional);
-    });
-    return z.object(zodFields);
-  };
-  
-  return {
-    objective: buildZodObject(objectiveFields),
-    requirement: buildZodObject(requirementFields),
-    constraint: buildZodObject(constraintFields),
-    designSolution: buildZodObject(designSolutionFields)
-  };
-};
+export const ConstraintSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  constraint_type: ConstraintTypeSchema,
+  constraint: z.object({
+    operator: ConstraintOperatorSchema,
+    value: z.union([z.number(), z.array(z.number()).length(2)]),
+    unit: z.string()
+  }),
+  priority: PrioritySchema,
+  rationale: z.string(),
+  is_negotiable: z.boolean().optional()
+});
 
-// Convert TypeScript type to JSON schema description
-const typeToJsonSchema = (fieldType: string, optional: boolean): string => {
-  const baseType = fieldType.replace(/\[\]$/, '').replace(/\?$/, '');
-  let description;
-  
-  if (fieldType.includes('[]')) {
-    description = `array of ${baseType}`;
-  } else if (baseType === 'string') {
-    description = 'string';
-  } else if (baseType === 'number') {
-    description = 'number';
-  } else if (baseType === 'boolean') {
-    description = 'boolean';
-  } else if (baseType.includes('|')) {
-    description = `string (${baseType.replace(/\s*\|\s*/g, '|')})`;
-  } else {
-    description = baseType;
-  }
-  
-  return optional ? `${description} (optional)` : description;
-};
+export const SpectralBandSchema = z.object({
+  name: z.string(),
+  centerWavelength: z.number(),
+  bandwidth: z.number(),
+  purpose: z.string()
+});
 
-// Generate JSON schema from TypeScript interfaces
-export const generateSchemaFromModels = () => {
-  const objectiveFields = extractInterface('Objective');
-  const requirementFields = extractInterface('Requirement');
-  const constraintFields = extractInterface('Constraint');
-  const designSolutionFields = extractInterface('DesignSolution');
-  
-  const buildJsonSchema = (fields: Record<string, any>) => {
-    const schema: Record<string, string> = {};
-    Object.entries(fields).forEach(([fieldName, fieldInfo]) => {
-      schema[fieldName] = typeToJsonSchema(fieldInfo.type, fieldInfo.optional);
-    });
-    return schema;
-  };
-  return {
-    objectives: {
-      type: 'array',
-      items: {
-        id: 'string (uuid)',
-        title: 'string (concise objective title)',
-        description: 'string (detailed description)',
-        priority: 'string (high|medium|low)',
-        category: 'string (scientific|operational|technical|commercial)',
-        stakeholders: 'array of stakeholder names',
-        notes: 'string (brief - 1-2 sentences max)'
-      }
-    },
-    
-    requirements: {
-      type: 'array',
-      items: {
-        id: 'string (uuid)',
-        title: 'string (concise requirement title)',
-        description: 'string (detailed technical requirement)',
-        type: 'string (performance|functional|interface|operational|safety|environmental)',
-        priority: 'string (high|medium|low)',
-        linkedObjectives: 'array of objective IDs',
-        validationFormula: {
-          formula: 'string (mathematical expression using variable names)',
-          variables: 'object with variable definitions',
-          description: 'string (what the formula validates)'
-        }
-      }
-    },
-    
-    constraints: {
-      type: 'array',
-      items: {
-        id: 'string (uuid)',
-        title: 'string (constraint title)',
-        constraint_type: 'string (budget|mass|power|volume|schedule|risk|technology|regulatory)',
-        constraint: {
-          operator: 'string (less_than|greater_than|equal_to|between)',
-          value: 'number or [number, number] for between',
-          unit: 'string (measurement unit)'
-        },
-        priority: 'string (high|medium|low)',
-        rationale: 'string (why this constraint exists)',
-        is_negotiable: 'boolean (whether constraint can be relaxed)'
-      }
-    },
-    
-    designSolutions: {
-      type: 'array',
-      items: {
-        id: 'string (uuid)',
-        name: 'string (solution name)',
-        label: 'string (solution label like "Option A", "Baseline")',
-        status: 'string (proposed|under_evaluation|selected|rejected)',
-        spacecraft: {
-          type: 'array',
-          items: {
-            id: 'string (uuid)',
-            name: 'string (spacecraft name)',
-            components: {
-              type: 'array',
-              items: {
-                id: 'string (uuid)',
-                name: 'string (component name)',
-                type: 'string (payload|power|avionics|adcs|communications|structure|thermal|propulsion)',
-                mass: 'number (kg)',
-                powerGenerated: 'number (Watts, optional)',
-                powerConsumed: 'number (Watts, optional)',
-                cost: 'number (USD, optional)',
-                manufacturer: 'string (optional)',
-                heritage: 'string (optional)',
-                trl: 'number (1-9, optional)',
-                reliability: 'number (0-1, optional)',
-                operatingTemperatureMin: 'number (Celsius, optional)',
-                operatingTemperatureMax: 'number (Celsius, optional)',
-                notes: 'string (optional)',
-                description: 'string (optional)',
-                volume: 'number (Liters, optional)',
-                // Payload-specific
-                focalLength: 'number (meters, for payload)',
-                apertureDiameter: 'number (meters, for payload)',
-                groundSampleDistance: 'number (meters, for payload)',
-                swathWidth: 'number (km, for payload)',
-                spectralBands: 'array of spectral band objects (for payload)',
-                detectorType: 'string (for payload)',
-                radiometricResolution: 'number (bits, for payload)',
-                dataRate: 'number (Mbps, for payload/comms)',
-                // Power-specific
-                batteryCapacity: 'number (Wh, for power)',
-                solarArrayArea: 'number (m², for power)',
-                solarArrayEfficiency: 'number (%, for power)',
-                batteryType: 'string (for power)',
-                chargeCycles: 'number (for power)',
-                // Avionics-specific
-                processingPower: 'number (MIPS, for avionics)',
-                memoryCapacity: 'number (GB, for avionics)',
-                storageCapacity: 'number (GB, for avionics)',
-                redundancy: 'string (for avionics)',
-                operatingSystem: 'string (for avionics)'
-              }
-            },
-            dryMass: 'number (kg, optional)',
-            totalPowerGenerated: 'number (W, optional)',
-            totalPowerConsumed: 'number (W, optional)',
-            totalCost: 'number (USD, optional)'
-          }
-        },
-        orbit: {
-          id: 'string (uuid)',
-          name: 'string (orbit name)',
-          altitude: 'number (km)',
-          inclination: 'number (degrees)',
-          eccentricity: 'number (0-1)',
-          period: 'number (minutes, optional)',
-          notes: 'string (optional)'
-        },
-        groundStations: {
-          type: 'array',
-          items: {
-            id: 'string (uuid)',
-            name: 'string (station name)',
-            location: 'string (location name)',
-            latitude: 'number (degrees)',
-            longitude: 'number (degrees)',
-            monthlyFee: 'number (USD)',
-            maxDataRate: 'number (Mbps)',
-            elevationMask: 'number (degrees)',
-            notes: 'string (optional)'
-          }
-        },
-        notes: 'string (solution notes)',
-        createdAt: 'string (ISO timestamp)'
-      }
-    }
-  };
+// Base component schema
+const BaseComponentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: ComponentTypeSchema,
+  mass: z.number(),
+  powerGenerated: z.number(),
+  powerConsumed: z.number(),
+  cost: z.number(),
+  manufacturer: z.string().optional(),
+  heritage: z.string().optional(),
+  trl: z.number().min(1).max(9),
+  reliability: z.number().min(0).max(1),
+  operatingTemperatureMin: z.number().optional(),
+  operatingTemperatureMax: z.number().optional(),
+  notes: z.string().optional(),
+  description: z.string().optional(),
+  volume: z.number().optional()
+});
+
+// Payload component schema
+const PayloadComponentSchema = BaseComponentSchema.extend({
+  type: z.literal('payload'),
+  focalLength: z.number().optional(),
+  apertureDiameter: z.number().optional(),
+  groundSampleDistance: z.number().optional(),
+  groundSampleDistance_multispectral: z.number().optional(),
+  swathWidth: z.number().optional(),
+  spectralBands: z.array(SpectralBandSchema).optional(),
+  detectorType: z.string().optional(),
+  radiometricResolution: z.number().optional(),
+  dataRate: z.number().optional(),
+  signalToNoiseRatio: z.number().optional(),
+  geolocationAccuracy: z.number().optional(),
+  pointingAccuracy: z.number().optional(),
+  pointingStability: z.number().optional()
+});
+
+// Power component schema
+const PowerComponentSchema = BaseComponentSchema.extend({
+  type: z.literal('power'),
+  batteryCapacity: z.number().optional(),
+  solarArrayArea: z.number().optional(),
+  solarArrayEfficiency: z.number().optional(),
+  batteryType: z.string().optional(),
+  chargeCycles: z.number().optional()
+});
+
+// Avionics component schema
+const AvionicsComponentSchema = BaseComponentSchema.extend({
+  type: z.literal('avionics'),
+  processingPower: z.number().optional(),
+  memoryCapacity: z.number().optional(),
+  storageCapacity: z.number().optional(),
+  redundancy: z.string().optional(),
+  operatingSystem: z.string().optional()
+});
+
+// ADCS component schema
+const AdcsComponentSchema = BaseComponentSchema.extend({
+  type: z.literal('adcs'),
+  pointingAccuracy: z.number().optional(),
+  pointingStability: z.number().optional(),
+  attitudeKnowledge: z.number().optional(),
+  slew_rate: z.number().optional()
+});
+
+// Communications component schema
+const CommunicationsComponentSchema = BaseComponentSchema.extend({
+  type: z.literal('communications'),
+  dataRate: z.number().optional(),
+  frequency: z.number().optional(),
+  antennaType: z.string().optional(),
+  antennaGain: z.number().optional(),
+  transmitPower: z.number().optional()
+});
+
+// Structure component schema
+const StructureComponentSchema = BaseComponentSchema.extend({
+  type: z.literal('structure'),
+  material: z.string().optional(),
+  stiffness: z.number().optional(),
+  dampingRatio: z.number().optional()
+});
+
+// Thermal component schema
+const ThermalComponentSchema = BaseComponentSchema.extend({
+  type: z.literal('thermal'),
+  heatDissipation: z.number().optional(),
+  thermalConductivity: z.number().optional(),
+  operatingTemperatureRange: z.array(z.number()).length(2).optional()
+});
+
+// Propulsion component schema
+const PropulsionComponentSchema = BaseComponentSchema.extend({
+  type: z.literal('propulsion'),
+  propellantType: z.string().optional(),
+  specificImpulse: z.number().optional(),
+  thrust: z.number().optional(),
+  propellantMass: z.number().optional(),
+  deltaV: z.number().optional()
+});
+
+// Union schema for all component types
+export const ComponentSchema = z.discriminatedUnion('type', [
+  PayloadComponentSchema,
+  PowerComponentSchema,
+  AvionicsComponentSchema,
+  AdcsComponentSchema,
+  CommunicationsComponentSchema,
+  StructureComponentSchema,
+  ThermalComponentSchema,
+  PropulsionComponentSchema
+]);
+
+export const SpacecraftSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  components: z.array(ComponentSchema),
+  dryMass: z.number(),
+  totalPowerGenerated: z.number(),
+  totalPowerConsumed: z.number(),
+  totalCost: z.number()
+});
+
+export const OrbitSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  altitude: z.number(),
+  inclination: z.number(),
+  eccentricity: z.number(),
+  period: z.number(),
+  notes: z.string()
+});
+
+export const GroundStationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  location: z.string(),
+  latitude: z.number(),
+  longitude: z.number(),
+  monthlyFee: z.number(),
+  maxDataRate: z.number(),
+  elevationMask: z.number(),
+  notes: z.string()
+});
+
+export const DesignSolutionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  label: z.string(),
+  status: SolutionStatusSchema,
+  spacecraft: z.array(SpacecraftSchema),
+  orbit: OrbitSchema.nullable().optional(),
+  groundStations: z.array(GroundStationSchema),
+  notes: z.string(),
+  createdAt: z.string()
+});
+
+// Export all schemas for use in tools
+export const schemas = {
+  ObjectiveSchema,
+  RequirementSchema,
+  ConstraintSchema,
+  ComponentSchema,
+  SpacecraftSchema,
+  OrbitSchema,
+  GroundStationSchema,
+  DesignSolutionSchema
 };

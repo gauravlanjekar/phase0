@@ -50,7 +50,9 @@ const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
       newConstraint.priority
     );
     constraint.rationale = newConstraint.rationale;
-    constraint.is_negotiable = newConstraint.is_negotiable;
+    if (newConstraint.is_negotiable) {
+      constraint.is_negotiable = newConstraint.is_negotiable;
+    }
     
     onConstraintsChange([...(constraints || []), constraint]);
     setNewConstraint({
@@ -549,7 +551,7 @@ const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
               />
               <Checkbox
                 label="Negotiable"
-                checked={editingConstraint.is_negotiable}
+                checked={editingConstraint.is_negotiable || false}
                 onChange={(e) => setEditingConstraint({ ...editingConstraint, is_negotiable: e.target.checked })}
                 mt="xl"
                 styles={{

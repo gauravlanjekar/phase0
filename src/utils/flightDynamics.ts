@@ -12,12 +12,14 @@ export const calculateFlightDynamics = (solution: DesignSolution): FlightDynamic
   const { altitude, inclination, eccentricity } = solution.orbit;
   
   // Get swath width from payload components
-  const swathWidth = solution.spacecraft?.[0]?.components
-    ?.find(c => c.type === 'payload')?.swathWidth || 100;
+  const payloadComponent = solution.spacecraft?.[0]?.components
+    ?.find(c => c.type === 'payload') as any;
+  const swathWidth = payloadComponent?.swathWidth || 100;
   
   // Get data rate from communications components  
-  const dataRate = solution.spacecraft?.[0]?.components
-    ?.find(c => c.type === 'communications')?.dataRate || 100;
+  const commsComponent = solution.spacecraft?.[0]?.components
+    ?.find(c => c.type === 'communications') as any;
+  const dataRate = commsComponent?.dataRate || 100;
 
   // Calculate orbital period
   const semiMajorAxis = EARTH_RADIUS + altitude;
