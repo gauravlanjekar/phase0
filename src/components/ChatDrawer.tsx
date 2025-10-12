@@ -4,25 +4,23 @@ import { IconSend, IconRocket } from '@tabler/icons-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { missionAPI } from '../services/api';
-
-interface ChatMessage {
-  id: string;
-  text: string;
-  isUser: boolean;
-  timestamp: Date;
-}
+import { useChat } from './ChatContext';
 
 interface ChatDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   missionId: string;
+  initialMessage?: string;
+  onMessageSent?: () => void;
 }
 
-const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMessageSent }) => {
+  const { getMessages, addMessage, loadHistory } = useChat();
+  const messages = getMessages(missionId);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [threadId, setThreadId] = useState<string>();
+  const [progressMessage, setProgressMessage] = useState<string>('');
+  const [threadId, setThreadId] = useState<string>(`mission_${missionId}`);
   const viewport = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -33,48 +31,81 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId }) => {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    // Update threadId when missionId changes
+    const newThreadId = `mission_${missionId}`;
+    setThreadId(newThreadId);
+    // Load conversation history for this mission
+    loadHistory(missionId);
+  }, [missionId, loadHistory]);
+
+  useEffect(() => {
+    if (initialMessage && initialMessage.trim()) {
+      setInputMessage(initialMessage);
+      // Auto-send the message
+      setTimeout(() => {
+        const form = document.querySelector('form');
+        if (form) {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+      }, 100);
+    }
+  }, [initialMessage]);
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim() || isLoading) return;
 
-    const userMessage: ChatMessage = {
+    const userMessage = {
       id: Date.now().toString(),
       text: inputMessage,
       isUser: true,
       timestamp: new Date()
     };
 
-    setMessages(prev => [...(prev || []), userMessage]);
+    addMessage(missionId, userMessage);
     setInputMessage('');
     setIsLoading(true);
+    onMessageSent?.();
 
     try {
-      const response = await missionAPI.sendChatMessage(missionId, inputMessage, threadId);
+      const response = await missionAPI.sendChatMessage(
+        missionId, 
+        inputMessage, 
+        threadId,
+        (progress) => setProgressMessage(progress)
+      );
       
       // Always update threadId from response to maintain conversation
       if (response.threadId) {
         setThreadId(response.threadId);
       }
 
-      const agentMessage: ChatMessage = {
+      const agentMessage = {
         id: (Date.now() + 1).toString(),
         text: response.response,
         isUser: false,
         timestamp: new Date()
       };
 
-      setMessages(prev => [...(prev || []), agentMessage]);
+      addMessage(missionId, agentMessage);
+      
+      // Trigger data refresh after agent response
+      window.dispatchEvent(new CustomEvent('agentResponseReceived', { 
+        detail: { missionId } 
+      }));
     } catch (error) {
       console.error('Failed to send message:', error);
-      const errorMessage: ChatMessage = {
+      const errorMessage = {
         id: (Date.now() + 1).toString(),
         text: 'Sorry, I encountered an error. Please try again.',
         isUser: false,
         timestamp: new Date()
       };
-      setMessages(prev => [...(prev || []), errorMessage]);
+      addMessage(missionId, errorMessage);
     } finally {
       setIsLoading(false);
+      setProgressMessage('');
     }
   };
 
@@ -194,7 +225,9 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId }) => {
               >
                 <Group gap="xs">
                   <Loader size="sm" color="blue" />
-                  <Text size="sm" c="dimmed">Analyzing your request...</Text>
+                  <Text size="sm" c="dimmed">
+                    {progressMessage || 'Analyzing your request...'}
+                  </Text>
                 </Group>
               </Paper>
             </Group>

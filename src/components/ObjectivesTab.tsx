@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, Box, Modal, Loader, Collapse, Grid } from '@mantine/core';
+import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, Box, Modal, Collapse, Grid } from '@mantine/core';
 import { IconPlus, IconTrash, IconWand, IconTarget, IconUsers, IconNotes, IconEdit, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import { Objective, Priority, createObjective } from '../types/models';
-import { missionAPI } from '../services/api';
+
 
 interface ObjectivesTabProps {
   missionId: string;
@@ -64,21 +64,15 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
     setEditingObjective(null);
   };
 
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const generateObjectives = async () => {
-    setIsGenerating(true);
-    try {
-      const response = await missionAPI.generateObjectives(missionId, 'Mission brief');
-      if (response.success && Array.isArray(response.objectives)) {
-        onObjectivesChange([...(objectives || []), ...response.objectives]);
-        onRefresh?.();
-      }
-    } catch (error) {
-      console.error('Failed to generate objectives:', error);
-    } finally {
-      setIsGenerating(false);
-    }
+  const generateObjectives = () => {
+    const message = `Generate 8-10 clear mission objectives for this Earth Observation mission.
+Each objective should be specific, measurable, and aligned with typical Earth observation goals.
+Use get_objectives_schema and save_objectives tools.`;
+    
+    // Trigger chat window to open with this message
+    window.dispatchEvent(new CustomEvent('openChatWithMessage', { 
+      detail: { message, missionId } 
+    }));
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -114,18 +108,17 @@ const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
         </Box>
         <Group>
           <Button 
-            leftSection={isGenerating ? <Loader size={18} color="white" /> : <IconWand size={18} />} 
+            leftSection={<IconWand size={18} />} 
             variant="gradient"
             gradient={{ from: '#667eea', to: '#764ba2' }}
             onClick={generateObjectives}
-            disabled={isGenerating}
             size="lg"
             style={{
-              boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(102, 126, 234, 0.4)',
-              transform: isGenerating ? 'none' : 'translateY(-1px)'
+              boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)',
+              transform: 'translateY(-1px)'
             }}
           >
-            {isGenerating ? 'Generating Objectives...' : '✨ AI Generate'}
+            ✨ AI Generate
           </Button>
           <Button 
             leftSection={<IconPlus size={16} />} 

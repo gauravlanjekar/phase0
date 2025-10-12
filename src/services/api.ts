@@ -56,15 +56,50 @@ export const missionAPI = {
     return response.json();
   },
 
-  // Send chat message
-  sendChatMessage: async (missionId: string, message: string, threadId?: string): Promise<ChatResponse> => {
+  // Send chat message with streaming support
+  sendChatMessage: async (missionId: string, message: string, threadId?: string, onProgress?: (message: string) => void): Promise<ChatResponse> => {
     try {
+      const useStreaming = !!onProgress;
       const response = await fetch(`${LANGGRAPH_BASE}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, missionId, threadId })
+        body: JSON.stringify({ message, missionId, threadId, stream: useStreaming })
       });
-      return response.json();
+      
+      if (useStreaming && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let finalResponse = '';
+        let finalThreadId = threadId || `mission_${missionId}`;
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === 'progress') {
+                  onProgress(data.message);
+                } else if (data.type === 'complete') {
+                  finalResponse = data.response;
+                  finalThreadId = data.threadId;
+                }
+              } catch (e) {
+                // Ignore parsing errors
+              }
+            }
+          }
+        }
+        
+        return { response: finalResponse, threadId: finalThreadId };
+      } else {
+        return response.json();
+      }
     } catch (error) {
       console.error('LangGraph agent not available, using fallback');
       const response = await fetch(`${API_BASE}/missions/${missionId}/chat`, {
@@ -180,6 +215,20 @@ This creates a complete early-phase mission analysis baseline.`;
     } catch (error) {
       console.error('Failed to get validation reports:', error);
       return [];
+    }
+  },
+
+  // Get conversation history
+  getConversationHistory: async (missionId: string, threadId: string): Promise<{ messages: any[] }> => {
+    try {
+      const response = await fetch(`${LANGGRAPH_BASE}/history/${threadId}`);
+      if (response.ok) {
+        return response.json();
+      }
+      return { messages: [] };
+    } catch (error) {
+      console.error('Failed to get conversation history:', error);
+      return { messages: [] };
     }
   }
 };

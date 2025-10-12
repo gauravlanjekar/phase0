@@ -20,6 +20,7 @@ const MissionWorkspace: React.FC = () => {
   const [solutions, setSolutions] = useState<DesignSolution[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [chatMessage, setChatMessage] = useState<string>('');
 
   useEffect(() => {
     if (!localStorage.getItem('isAuthenticated')) {
@@ -28,6 +29,30 @@ const MissionWorkspace: React.FC = () => {
     }
     if (!id) return;
     loadTabData();
+
+    // Listen for chat open events
+    const handleOpenChat = (event: CustomEvent) => {
+      const { message, missionId } = event.detail;
+      if (missionId === id) {
+        setChatMessage(message);
+        setIsChatOpen(true);
+      }
+    };
+
+    // Listen for agent responses to refresh data
+    const handleAgentResponse = (event: CustomEvent) => {
+      const { missionId } = event.detail;
+      if (missionId === id) {
+        loadTabData();
+      }
+    };
+
+    window.addEventListener('openChatWithMessage', handleOpenChat as EventListener);
+    window.addEventListener('agentResponseReceived', handleAgentResponse as EventListener);
+    return () => {
+      window.removeEventListener('openChatWithMessage', handleOpenChat as EventListener);
+      window.removeEventListener('agentResponseReceived', handleAgentResponse as EventListener);
+    };
   }, [id, navigate]);
 
   // Refresh data when tab changes
@@ -223,6 +248,8 @@ const MissionWorkspace: React.FC = () => {
             isOpen={isChatOpen}
             onClose={() => setIsChatOpen(false)}
             missionId={id!}
+            initialMessage={chatMessage}
+            onMessageSent={() => setChatMessage('')}
           />
         </Drawer>
 

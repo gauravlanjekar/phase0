@@ -1,6 +1,7 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v4';
 import axios from 'axios';
+
 // Import schemas from generator
 let ObjectiveSchema: any;
 let RequirementSchema: any;
@@ -82,6 +83,15 @@ const coreFunctions = {
         statusText: (error as any).response?.statusText
       });
       throw error;
+    }
+  },
+
+  async getData(missionId: string, tabIndex: number): Promise<any> {
+    try {
+      const response = await axios.get(`${API_BASE}/missions/${missionId}/tabs/${tabIndex}`);
+      return response.data;
+    } catch (error) {
+      return null;
     }
   },
 
@@ -750,12 +760,14 @@ export const searchInternetTool = tool(
 
 // Flight Dynamics Tool
 export const flightDynamicsTool = tool(
-  async ({ altitude, inclination, eccentricity, swathWidth, dataRate }: {
+  async ({ altitude, inclination, eccentricity, swathWidth, dataRate, numSpacecraft, groundStations }: {
     altitude: number;
     inclination: number;
     eccentricity?: number;
     swathWidth?: number;
     dataRate?: number;
+    numSpacecraft?: number;
+    groundStations?: Array<{latitude: number, maxDataRate: number}>;
   }) => {
     const { FlightDynamicsCalculator } = await import('./flight-dynamics');
     
@@ -765,27 +777,53 @@ export const flightDynamicsTool = tool(
       eccentricity: eccentricity || 0
     };
     
+    // Convert ground stations format for single spacecraft analysis
+    const gsForAnalysis = groundStations?.map(gs => ({
+      latitude: gs.latitude,
+      name: `Station_${gs.latitude}`,
+      maxDataRate: gs.maxDataRate
+    }));
+    
     const results = FlightDynamicsCalculator.performCompleteAnalysis(
       orbit,
       swathWidth || 100,
-      dataRate || 100
+      dataRate || 100,
+      gsForAnalysis
     );
+    
+    let constellationResults = null;
+    if (numSpacecraft && numSpacecraft > 1) {
+      constellationResults = FlightDynamicsCalculator.analyzeConstellation(
+        numSpacecraft,
+        orbit,
+        swathWidth || 100,
+        groundStations || [{latitude: 45, maxDataRate: dataRate || 100}]
+      );
+    }
     
     return {
       success: true,
       results,
-      summary: `Orbital analysis complete: Period=${results.orbitalPeriod.toFixed(1)}min, Velocity=${results.orbitalVelocity.toFixed(2)}km/s, Revisit=${results.revisitTime.toFixed(1)}hrs`
+      constellationResults,
+      summary: constellationResults 
+        ? `Constellation analysis: ${numSpacecraft} spacecraft, Revisit=${constellationResults.constellationRevisitTime.toFixed(1)}hrs, Coverage=${constellationResults.constellationCoverage.toFixed(1)}%`
+        : `Orbital analysis: Period=${results.orbitalPeriod.toFixed(1)}min, Velocity=${results.orbitalVelocity.toFixed(2)}km/s, Revisit=${results.revisitTime.toFixed(1)}hrs`
     };
   },
   {
     name: 'flight_dynamics',
-    description: 'Calculate orbital mechanics parameters including period, velocity, revisit time, eclipse duration, and coverage analysis',
+    description: 'Calculate orbital mechanics parameters for single spacecraft or constellation including period, velocity, revisit time, coverage, and ground station analysis',
     schema: z.object({
       altitude: z.number().describe('Orbital altitude in km'),
       inclination: z.number().describe('Orbital inclination in degrees'),
       eccentricity: z.number().optional().describe('Orbital eccentricity (default: 0)'),
       swathWidth: z.number().optional().describe('Instrument swath width in km (default: 100)'),
-      dataRate: z.number().optional().describe('Data rate in Mbps (default: 100)')
+      dataRate: z.number().optional().describe('Data rate in Mbps (default: 100)'),
+      numSpacecraft: z.number().optional().describe('Number of spacecraft in constellation (default: 1)'),
+      groundStations: z.array(z.object({
+        latitude: z.number(),
+        maxDataRate: z.number()
+      })).optional().describe('Ground stations with latitude and data rate')
     })
   }
 );

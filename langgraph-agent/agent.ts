@@ -41,6 +41,13 @@ SPACECRAFT SUBSYSTEMS:
 - C&DH: High-capacity storage (TB), image processing
 - Communications: X-band downlink (100Mbps-8Gbps)
 
+CONSTELLATION DESIGN:
+- Use multiple spacecraft when mission requires frequent revisit (<1 day), global coverage, or redundancy
+- Consider constellation trade-offs: cost vs performance, complexity vs capability
+- Typical constellation sizes: 3-12 spacecraft for Earth observation
+- Each spacecraft in constellation can have identical or specialized payloads
+- Design solutions support multiple spacecraft via spacecraft[] array
+
 ORBITAL MECHANICS:
 - Sun-synchronous LEO (600-800km): Consistent lighting, global coverage
 - Polar orbits: Complete Earth coverage
@@ -84,7 +91,14 @@ When creating requirements with validation formulas, use JSON paths for variable
 When users ask to generate content, use the appropriate tools to actually create and save it.
 When users want to modify existing solutions, use granular editing tools for precise updates.
 When users ask about current information, recent missions, or specific components, use internet search to get up-to-date data.
-Always get mission data first to understand the current state before making recommendations.`;
+Always get mission data first to understand the current state before making recommendations.
+
+CONSTELLATION CONSIDERATIONS:
+- For missions requiring daily revisit or better: recommend 3+ spacecraft constellation
+- For global disaster monitoring: recommend 6-12 spacecraft constellation
+- For high-resolution imaging with wide coverage: recommend 4-8 spacecraft constellation
+- Each spacecraft in constellation should be included in the spacecraft[] array of the design solution
+- Consider constellation phasing and orbital plane distribution for optimal coverage`;
 
 // Create tool node and bind tools to model
 const toolNode = new ToolNode(allTools);
@@ -145,13 +159,32 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Chat endpoint
+// Helper function for concise progress messages
+function getProgressMessage(toolName: string): string {
+  const messages: Record<string, string> = {
+    'get_mission_data': '📋 Loading mission data...',
+    'save_objectives': '🎯 Saving objectives...',
+    'save_requirements': '📝 Saving requirements...',
+    'save_constraints': '🔒 Saving constraints...',
+    'save_solutions': '🚀 Saving design solutions...',
+    'save_validation_reports': '✅ Saving validation results...',
+    'get_objectives_schema': '🎯 Analyzing objectives...',
+    'get_requirements_schema': '📝 Analyzing requirements...',
+    'get_constraints_schema': '🔒 Analyzing constraints...',
+    'get_solutions_schema': '🚀 Analyzing solutions...',
+    'flight_dynamics_tool': '🛰️ Computing orbital mechanics...',
+    'bulk_save_mission_data': '💾 Bulk saving mission data...'
+  };
+  return messages[toolName] || `⚙️ Running ${toolName}...`;
+}
+
+// Chat endpoint with streaming
 app.post('/chat', async (req: Request, res: Response) => {
-  const { message, missionId, threadId } = req.body;
+  const { message, missionId, threadId, stream = false } = req.body;
   
   try {
     const contextMessage = `Working with Mission ID: ${missionId}. Use this ID when calling tools that require missionId parameter.`;
-    const currentThreadId = threadId || `thread_${missionId}_${Date.now()}`;
+    const currentThreadId = threadId || `mission_${missionId}`;
     
     const conversationHistory = await memoryManager.getConversation(currentThreadId);
     const userMessage = new HumanMessage(`${contextMessage}\n\n${message}`);
@@ -159,38 +192,77 @@ app.post('/chat', async (req: Request, res: Response) => {
     
     const agent = getAgent();
     
-    console.log('🚀 Starting agent execution...');
-    
-    let finalResult;
-    
-    for await (const chunk of await agent.stream(
-      { messages: allMessages },
-      { streamMode: "updates" }
-    )) {
-      console.log('📍 Chunk:', JSON.stringify(chunk, null, 2));
+    if (stream) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*'
+      });
       
-      // Extract the final result from the last chunk
-      const nodeNames = Object.keys(chunk);
-      for (const nodeName of nodeNames) {
-        if (chunk[nodeName]) {
-          finalResult = chunk[nodeName];
+      let finalResult;
+      
+      for await (const chunk of await agent.stream(
+        { messages: allMessages },
+        { streamMode: "updates" }
+      )) {
+        const nodeNames = Object.keys(chunk);
+        for (const nodeName of nodeNames) {
+          if (chunk[nodeName]) {
+            finalResult = chunk[nodeName];
+            
+            // Send concise progress updates
+            if (nodeName === 'agent') {
+              const lastMessage = chunk[nodeName].messages?.[chunk[nodeName].messages.length - 1];
+              if (lastMessage?.tool_calls?.length > 0) {
+                const toolName = lastMessage.tool_calls[0].name;
+                const progressMsg = getProgressMessage(toolName);
+                res.write(`data: ${JSON.stringify({ type: 'progress', message: progressMsg })}\n\n`);
+              }
+            }
+          }
         }
       }
+      
+      const lastMessage = finalResult.messages[finalResult.messages.length - 1];
+      res.write(`data: ${JSON.stringify({ 
+        type: 'complete', 
+        response: lastMessage.content.toString(),
+        threadId: currentThreadId 
+      })}\n\n`);
+      
+      const updatedHistory = finalResult.messages.slice(-20);
+      await memoryManager.storeConversation(currentThreadId, updatedHistory);
+      conversationMemory.set(currentThreadId, updatedHistory);
+      
+      res.end();
+    } else {
+      // Non-streaming response (existing behavior)
+      let finalResult;
+      
+      for await (const chunk of await agent.stream(
+        { messages: allMessages },
+        { streamMode: "updates" }
+      )) {
+        const nodeNames = Object.keys(chunk);
+        for (const nodeName of nodeNames) {
+          if (chunk[nodeName]) {
+            finalResult = chunk[nodeName];
+          }
+        }
+      }
+      
+      const updatedHistory = finalResult.messages.slice(-20);
+      await memoryManager.storeConversation(currentThreadId, updatedHistory);
+      conversationMemory.set(currentThreadId, updatedHistory);
+      
+      const lastMessage = finalResult.messages[finalResult.messages.length - 1];
+      
+      res.json({ 
+        response: lastMessage.content.toString(),
+        threadId: currentThreadId
+      });
     }
-    
-    const result = finalResult;
-    console.log('✅ Agent execution completed');
-    
-    const updatedHistory = result.messages.slice(-20);
-    await memoryManager.storeConversation(currentThreadId, updatedHistory);
-    conversationMemory.set(currentThreadId, updatedHistory);
-    
-    const lastMessage = result.messages[result.messages.length - 1];
-    
-    res.json({ 
-      response: lastMessage.content.toString(),
-      threadId: currentThreadId
-    });
   } catch (error) {
     console.error('Chat failed:', (error as Error).message);
     res.status(500).json({ error: (error as Error).message });

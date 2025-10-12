@@ -13,6 +13,16 @@ export interface OrbitParameters {
   period?: number; // minutes
 }
 
+export interface GroundStationAnalysis {
+  stationName?: string;
+  latitude: number;
+  passesPerDay: number;
+  passDuration: number; // minutes
+  totalContactTime: number; // minutes per day
+  maxElevation: number; // degrees
+  dataDownlinkCapacity: number; // MB per day
+}
+
 export interface FlightDynamicsResults {
   orbitalPeriod: number; // minutes
   orbitalVelocity: number; // km/s
@@ -24,6 +34,16 @@ export interface FlightDynamicsResults {
   sunlightDuration: number; // minutes per orbit
   groundStationPasses: number; // per day
   dataDownlinkOpportunity: number; // minutes per day
+  groundStationAnalysis?: GroundStationAnalysis[];
+}
+
+export interface ConstellationResults {
+  constellationRevisitTime: number; // hours
+  globalCoverageTime: number; // hours
+  averageGroundStationPasses: number; // per day per spacecraft
+  totalDataDownlinkCapacity: number; // Mbps
+  constellationCoverage: number; // percentage
+  redundancyFactor: number; // coverage overlap
 }
 
 export class FlightDynamicsCalculator {
@@ -145,7 +165,40 @@ export class FlightDynamicsCalculator {
     return Math.acos(Math.max(-1, Math.min(1, cosInc))) * 180 / Math.PI;
   }
 
-  static performCompleteAnalysis(orbit: OrbitParameters, swathWidth: number = 100, dataRate: number = 100): FlightDynamicsResults {
+  static analyzeGroundStation(altitude: number, inclination: number, stationLat: number, stationName?: string, dataRate: number = 100): GroundStationAnalysis {
+    const passesPerDay = this.calculateGroundStationPasses(altitude, stationLat);
+    const passDuration = this.calculatePassDuration(altitude);
+    const totalContactTime = passesPerDay * passDuration;
+    const maxElevation = this.calculateMaxElevation(altitude, stationLat, inclination);
+    const dataDownlinkCapacity = (totalContactTime * dataRate * 60) / 8 / 1024; // MB per day
+    
+    return {
+      stationName,
+      latitude: stationLat,
+      passesPerDay,
+      passDuration,
+      totalContactTime,
+      maxElevation,
+      dataDownlinkCapacity
+    };
+  }
+
+  static calculateMaxElevation(altitude: number, stationLat: number, inclination: number): number {
+    const radius = EARTH_RADIUS + altitude;
+    const stationLatRad = Math.abs(stationLat) * Math.PI / 180;
+    const incRad = inclination * Math.PI / 180;
+    
+    // Simplified max elevation calculation
+    const maxElevRad = Math.asin(EARTH_RADIUS / radius);
+    return Math.min(90, maxElevRad * 180 / Math.PI + 30); // Rough approximation
+  }
+
+  static performCompleteAnalysis(
+    orbit: OrbitParameters, 
+    swathWidth: number = 100, 
+    dataRate: number = 100,
+    groundStations?: Array<{latitude: number, name?: string, maxDataRate?: number}>
+  ): FlightDynamicsResults {
     const { altitude, inclination, eccentricity } = orbit;
     
     // Validate inputs
@@ -163,6 +216,20 @@ export class FlightDynamicsCalculator {
     const groundStationPasses = this.calculateGroundStationPasses(altitude, 45);
     const dataDownlinkOpportunity = this.calculateDataDownlinkTime(altitude, dataRate, 1000);
 
+    // Detailed ground station analysis if provided
+    let groundStationAnalysis: GroundStationAnalysis[] | undefined;
+    if (groundStations && groundStations.length > 0) {
+      groundStationAnalysis = groundStations.map(gs => 
+        this.analyzeGroundStation(
+          altitude, 
+          inclination, 
+          gs.latitude, 
+          gs.name, 
+          gs.maxDataRate || dataRate
+        )
+      );
+    }
+
     return {
       orbitalPeriod: orbitalPeriod || 0,
       orbitalVelocity: orbitalVelocity || 0,
@@ -173,7 +240,40 @@ export class FlightDynamicsCalculator {
       eclipseDuration: eclipseDuration || 0,
       sunlightDuration: sunlightDuration || 0,
       groundStationPasses: groundStationPasses || 0,
-      dataDownlinkOpportunity: dataDownlinkOpportunity || 0
+      dataDownlinkOpportunity: dataDownlinkOpportunity || 0,
+      groundStationAnalysis
+    };
+  }
+
+  static analyzeConstellation(
+    numSpacecraft: number, 
+    orbit: OrbitParameters, 
+    swathWidth: number = 100,
+    groundStations: Array<{latitude: number, maxDataRate: number}> = [{latitude: 45, maxDataRate: 100}]
+  ): ConstellationResults {
+    const singleSatRevisit = this.calculateRevisitTime(orbit.altitude, orbit.inclination, swathWidth);
+    const constellationRevisitTime = singleSatRevisit / numSpacecraft;
+    
+    const globalCoverageTime = Math.max(1, 24 / numSpacecraft);
+    
+    const avgPasses = groundStations.reduce((sum, gs) => 
+      sum + this.calculateGroundStationPasses(orbit.altitude, gs.latitude), 0
+    ) / groundStations.length;
+    
+    const totalDataRate = groundStations.reduce((sum, gs) => sum + gs.maxDataRate, 0) * numSpacecraft;
+    
+    const maxCoverage = this.calculateMaxLatitudeCoverage(orbit.inclination);
+    const constellationCoverage = Math.min(100, maxCoverage * (1 + (numSpacecraft - 1) * 0.1));
+    
+    const redundancyFactor = Math.min(3, numSpacecraft / 3);
+    
+    return {
+      constellationRevisitTime,
+      globalCoverageTime,
+      averageGroundStationPasses: avgPasses,
+      totalDataDownlinkCapacity: totalDataRate,
+      constellationCoverage,
+      redundancyFactor
     };
   }
 }

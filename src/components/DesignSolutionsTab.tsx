@@ -31,7 +31,6 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
   const [editingOrbit, setEditingOrbit] = useState<{ orbit: Orbit; solutionId: string } | null>(null);
   const [editingGroundStation, setEditingGroundStation] = useState<{ station: GroundStation; solutionId: string } | null>(null);
   const [validationReports, setValidationReports] = useState<Record<string, ValidationReport[]>>({});
-  const [validatingId, setValidatingId] = useState<string | null>(null);
 
 
   const toggleExpanded = (solutionId: string) => {
@@ -131,21 +130,15 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
     setEditingGroundStation(null);
   };
 
-  const [isGenerating, setIsGenerating] = useState(false);
 
-  const generateSolutions = async () => {
-    setIsGenerating(true);
-    try {
-      const response = await missionAPI.generateDesignSolutions(missionId, objectives || [], requirements || [], constraints || []);
-      if (response.success && Array.isArray(response.designSolutions)) {
-        onSolutionsChange([...(solutions || []), ...response.designSolutions]);
-        onRefresh?.();
-      }
-    } catch (error) {
-      console.error('Failed to generate solutions:', error);
-    } finally {
-      setIsGenerating(false);
-    }
+
+  const generateSolutions = () => {
+    const message = `Generate 1 complete spacecraft design solution with ALL 8 standard components (payload, power, avionics, adcs, communications, structure, thermal, propulsion), sun-synchronous orbit, and ground stations.
+Use get_solutions_schema and save_solutions tools.`;
+    
+    window.dispatchEvent(new CustomEvent('openChatWithMessage', { 
+      detail: { message, missionId } 
+    }));
   };
 
   const getStatusColor = (status: string) => {
@@ -197,20 +190,15 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
     }
   };
 
-  const validateSolution = async (solutionId: string) => {
+  const validateSolution = (solutionId: string) => {
     if (!requirements || requirements.length === 0) return;
     
-    setValidatingId(solutionId);
-    try {
-      await missionAPI.validateSolution(missionId, solutionId, requirements);
-      // Load the persisted reports
-      const reports = await missionAPI.getValidationReports(missionId, solutionId);
-      setValidationReports(prev => ({ ...prev, [solutionId]: reports }));
-    } catch (error) {
-      console.error('Failed to validate solution:', error);
-    } finally {
-      setValidatingId(null);
-    }
+    const reqText = requirements.map(r => `${r.title}: ${r.description}${r.aiHelperText ? ` (Helper: ${r.aiHelperText})` : ''}`).join('\n');
+    const message = `Validate design solution ${solutionId} against these requirements:\n\n${reqText}\n\nSteps:\n1. Use get_mission_data to access the solution details\n2. For each requirement, validate using the helper text guidance\n3. Use save_validation_reports to persist the results\n\nProvide validation status (PASS/FAIL/ERROR), explanation, actual value, and required value for each requirement.`;
+    
+    window.dispatchEvent(new CustomEvent('openChatWithMessage', { 
+      detail: { message, missionId } 
+    }));
   };
 
   // Load existing validation reports on mount
@@ -243,18 +231,17 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
         </Box>
         <Group>
           <Button 
-            leftSection={isGenerating ? <Loader size={18} color="white" /> : <IconWand size={18} />} 
+            leftSection={<IconWand size={18} />} 
             variant="gradient"
             gradient={{ from: '#667eea', to: '#764ba2' }}
             onClick={generateSolutions}
-            disabled={isGenerating}
             size="lg"
             style={{
-              boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(102, 126, 234, 0.4)',
-              transform: isGenerating ? 'none' : 'translateY(-1px)'
+              boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)',
+              transform: 'translateY(-1px)'
             }}
           >
-            {isGenerating ? 'Generating Solutions...' : '✨ AI Generate'}
+            ✨ AI Generate
           </Button>
           <Button 
             leftSection={<IconPlus size={16} />} 
@@ -306,11 +293,11 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
                       size="sm"
                       variant="gradient"
                       gradient={{ from: '#51cf66', to: '#11998e' }}
-                      leftSection={validatingId === solution.id ? <Loader size={16} color="white" /> : <IconShieldCheck size={16} />}
+                      leftSection={<IconShieldCheck size={16} />}
                       onClick={() => validateSolution(solution.id)}
-                      disabled={validatingId === solution.id || !requirements || requirements.length === 0}
+                      disabled={!requirements || requirements.length === 0}
                     >
-                      {validatingId === solution.id ? 'Validating...' : 'Validate'}
+                      Validate
                     </Button>
                     <ActionIcon 
                       color="blue" 

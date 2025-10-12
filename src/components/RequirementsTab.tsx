@@ -66,21 +66,18 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
     setEditingRequirement(null);
   };
 
-  const [isGenerating, setIsGenerating] = useState(false);
 
-  const generateRequirements = async () => {
-    setIsGenerating(true);
-    try {
-      const response = await missionAPI.generateRequirements(missionId, objectives || []);
-      if (response.success && Array.isArray(response.requirements)) {
-        onRequirementsChange([...(requirements || []), ...response.requirements]);
-        onRefresh?.();
-      }
-    } catch (error) {
-      console.error('Failed to generate requirements:', error);
-    } finally {
-      setIsGenerating(false);
-    }
+
+  const generateRequirements = () => {
+    const message = `Generate 10-12 focused technical requirements for this Earth Observation mission.
+For each requirement, include aiHelperText with plain text guidance on how to validate it against design solutions.
+Do NOT use mathematical formulas - use descriptive text like "Check if ground sample distance is better than 5m by examining payload component specifications".
+Use get_requirements_schema and save_requirements tools.`;
+    
+    // Trigger chat window to open with this message
+    window.dispatchEvent(new CustomEvent('openChatWithMessage', { 
+      detail: { message, missionId } 
+    }));
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -137,18 +134,17 @@ const RequirementsTab: React.FC<RequirementsTabProps> = ({
         </Box>
         <Group>
           <Button 
-            leftSection={isGenerating ? <Loader size={18} color="white" /> : <IconWand size={18} />} 
+            leftSection={<IconWand size={18} />} 
             variant="gradient"
             gradient={{ from: '#667eea', to: '#764ba2' }}
             onClick={generateRequirements}
-            disabled={isGenerating}
             size="lg"
             style={{
-              boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(102, 126, 234, 0.4)',
-              transform: isGenerating ? 'none' : 'translateY(-1px)'
+              boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)',
+              transform: 'translateY(-1px)'
             }}
           >
-            {isGenerating ? 'Generating Requirements...' : '✨ AI Generate'}
+            ✨ AI Generate
           </Button>
           <Button 
             leftSection={<IconPlus size={16} />} 

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, NumberInput, Checkbox, Box, Modal, Loader } from '@mantine/core';
+import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, NumberInput, Checkbox, Box, Modal } from '@mantine/core';
 import { IconPlus, IconTrash, IconWand, IconShield, IconScale, IconLock, IconEdit } from '@tabler/icons-react';
 import { Constraint, ConstraintType, ConstraintOperator, Priority, createConstraint, Objective, Requirement } from '../types/models';
-import { missionAPI } from '../services/api';
+
 
 interface ConstraintsTabProps {
   missionId: string;
@@ -23,7 +23,7 @@ const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
 }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [editingConstraint, setEditingConstraint] = useState<Constraint | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
+
   const [newConstraint, setNewConstraint] = useState({
     title: '',
     constraint_type: 'budget' as ConstraintType,
@@ -85,19 +85,14 @@ const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
     setEditingConstraint(null);
   };
 
-  const generateConstraints = async () => {
-    setIsGenerating(true);
-    try {
-      const response = await missionAPI.generateConstraints(missionId, objectives || [], requirements || []);
-      if (response.success && Array.isArray(response.constraints)) {
-        onConstraintsChange([...(constraints || []), ...response.constraints]);
-        onRefresh?.();
-      }
-    } catch (error) {
-      console.error('Failed to generate constraints:', error);
-    } finally {
-      setIsGenerating(false);
-    }
+  const generateConstraints = () => {
+    const message = `Generate 6-8 realistic mission constraints for this Earth Observation mission.
+Include budget, mass, power, volume, schedule, and risk constraints with specific values and units.
+Use get_constraints_schema and save_constraints tools.`;
+    
+    window.dispatchEvent(new CustomEvent('openChatWithMessage', { 
+      detail: { message, missionId } 
+    }));
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -146,18 +141,18 @@ const ConstraintsTab: React.FC<ConstraintsTabProps> = ({
         </Box>
         <Group>
           <Button 
-            leftSection={isGenerating ? <Loader size={18} color="white" /> : <IconWand size={18} />} 
+            leftSection={<IconWand size={18} />} 
             variant="gradient"
             gradient={{ from: '#667eea', to: '#764ba2' }}
             onClick={generateConstraints}
-            disabled={isGenerating}
+
             size="lg"
             style={{
-              boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(102, 126, 234, 0.4)',
-              transform: isGenerating ? 'none' : 'translateY(-1px)'
+              boxShadow: '0 4px 20px rgba(102, 126, 234, 0.4)',
+              transform: 'translateY(-1px)'
             }}
           >
-            {isGenerating ? 'Generating Constraints...' : '✨ AI Generate'}
+            ✨ AI Generate
           </Button>
           <Button 
             leftSection={<IconPlus size={16} />} 
