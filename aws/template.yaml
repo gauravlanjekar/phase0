@@ -91,6 +91,12 @@ Resources:
             RestApiId: !Ref MissionApi
             Path: /missions/{id}/tabs/{tabIndex}
             Method: put
+        UpdateMission:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MissionApi
+            Path: /missions/{id}
+            Method: put
 
 
   # API Gateway

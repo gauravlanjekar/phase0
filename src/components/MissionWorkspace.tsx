@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Paper, Tabs, Button, Group, Title, Drawer, Box, Badge, ActionIcon } from '@mantine/core';
 import { IconArrowLeft, IconMessageCircle, IconTarget, IconClipboardList, IconShield, IconSatellite, IconRocket } from '@tabler/icons-react';
-import { Objective, Requirement, Constraint, DesignSolution } from '../types/models';
+import { Objective, Requirement, Constraint, DesignSolution, Mission } from '../types/models';
 import { missionAPI } from '../services/api';
 import ObjectivesTab from './ObjectivesTab';
 import RequirementsTab from './RequirementsTab';
 import ConstraintsTab from './ConstraintsTab';
 import DesignSolutionsTab from './DesignSolutionsTab';
 import ChatDrawer from './ChatDrawer';
+import MissionHeader from './MissionHeader';
 
 const MissionWorkspace: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,7 @@ const MissionWorkspace: React.FC = () => {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [constraints, setConstraints] = useState<Constraint[]>([]);
   const [solutions, setSolutions] = useState<DesignSolution[]>([]);
+  const [mission, setMission] = useState<Mission | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chatMessage, setChatMessage] = useState<string>('');
@@ -65,12 +67,14 @@ const MissionWorkspace: React.FC = () => {
   const loadTabData = async () => {
     if (!id) return;
     try {
-      const [objData, reqData, conData, solData] = await Promise.all([
+      const [missionData, objData, reqData, conData, solData] = await Promise.all([
+        missionAPI.getMissions().then(missions => missions.find(m => m.id === id)),
         missionAPI.getTabData(id, 0),
         missionAPI.getTabData(id, 1),
         missionAPI.getTabData(id, 2),
         missionAPI.getTabData(id, 3)
       ]);
+      setMission(missionData || null);
       setObjectives(objData.objectives || []);
       setRequirements(reqData.requirements || []);
       setConstraints(conData.constraints || []);
@@ -135,15 +139,11 @@ const MissionWorkspace: React.FC = () => {
               Back to Control
             </Button>
             <Box>
-              <Group align="center" gap="sm">
-                <IconSatellite size={32} color="#667eea" />
-                <Title order={1} c="white" size="2rem">
-                  Mission {id}
-                </Title>
-                <Badge variant="gradient" gradient={{ from: '#667eea', to: '#764ba2' }} size="lg">
-                  Active
-                </Badge>
-              </Group>
+              <MissionHeader 
+                missionId={id!}
+                missionName={mission?.name}
+                onNameUpdate={(name) => setMission(prev => prev ? {...prev, name} : null)}
+              />
             </Box>
           </Group>
         </Group>

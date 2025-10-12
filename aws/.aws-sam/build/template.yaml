@@ -96,6 +96,13 @@ Resources:
               Ref: MissionApi
             Path: /missions/{id}/tabs/{tabIndex}
             Method: put
+        UpdateMission:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MissionApi
+            Path: /missions/{id}
+            Method: put
     Metadata:
       SamResourceId: MissionFunction
   MissionApi:

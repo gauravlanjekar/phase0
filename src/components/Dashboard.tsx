@@ -245,7 +245,7 @@ const Dashboard: React.FC = () => {
                       gradient={{ from: '#667eea', to: '#764ba2' }}
                       size="lg"
                     >
-                      Mission {mission.id}
+                      {mission.name || `Mission ${mission.id}`}
                     </Badge>
                     <ActionIcon 
                       color="red" 

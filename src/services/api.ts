@@ -33,6 +33,16 @@ export const missionAPI = {
     return response.json();
   },
 
+  // Update mission name
+  updateMissionName: async (id: string, name: string): Promise<Mission> => {
+    const response = await fetch(`${API_BASE}/missions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    return response.json();
+  },
+
   // Delete mission
   deleteMission: async (id: string): Promise<void> => {
     await fetch(`${API_BASE}/missions/${id}`, {
@@ -176,7 +186,9 @@ Use get_solutions_schema and save_solutions tools.`;
     try {
       const prompt = `Generate a complete baseline mission design for: "${brief}"
 
-Generate ALL mission elements in sequence:
+First, generate a mission name using generate_mission_name tool.
+
+Then generate ALL mission elements in sequence:
 1. OBJECTIVES: Use get_objectives_schema and save_objectives tools
 2. REQUIREMENTS: Use get_requirements_schema and save_requirements tools
 3. CONSTRAINTS: Use get_constraints_schema and save_constraints tools

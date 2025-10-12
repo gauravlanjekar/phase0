@@ -21,6 +21,7 @@ export interface TimelineStep {
 // Interface Definitions
 export interface Mission {
   id: string;
+  name: string;
   brief: string;
   createdAt: string;
   updatedAt: string;
@@ -250,8 +251,9 @@ export interface MissionCreationProgress {
 }
 
 // Factory Functions
-export const createMission = (id: string, brief: string): Mission => ({
+export const createMission = (id: string, name: string, brief: string): Mission => ({
   id,
+  name,
   brief,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString()

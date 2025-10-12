@@ -1,6 +1,7 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v4';
 import axios from 'axios';
+import { generateMissionNameTool } from './mission-name-tool';
 
 // Import schemas from generator
 let ObjectiveSchema: any;
@@ -876,5 +877,6 @@ export const allTools = [
   updateOrbitTool,
   searchInternetTool,
   flightDynamicsTool,
-  saveValidationReportsTool
+  saveValidationReportsTool,
+  generateMissionNameTool
 ];

@@ -27,6 +27,7 @@ exports.handler = async (event) => {
       
       case '/missions/{id}':
         if (httpMethod === 'GET') return await getMission(pathParameters.id);
+        if (httpMethod === 'PUT') return await updateMission(pathParameters.id, JSON.parse(body));
         if (httpMethod === 'DELETE') return await deleteMission(pathParameters.id);
         break;
       
@@ -52,6 +53,7 @@ async function getMissions() {
 async function createMission({ brief }) {
   const mission = {
     id: uuidv4(),
+    name: `Mission ${uuidv4().slice(0, 8)}`,
     brief,
     createdAt: new Date().toISOString()
   };
@@ -66,6 +68,17 @@ async function getMission(id) {
     return { statusCode: 404, headers, body: JSON.stringify({ error: 'Mission not found' }) };
   }
   return { statusCode: 200, headers, body: JSON.stringify(result.Item) };
+}
+
+async function updateMission(id, { name }) {
+  const result = await dynamodb.send(new GetCommand({ TableName: MISSIONS_TABLE, Key: { id } }));
+  if (!result.Item) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Mission not found' }) };
+  }
+  
+  const updatedMission = { ...result.Item, name, updatedAt: new Date().toISOString() };
+  await dynamodb.send(new PutCommand({ TableName: MISSIONS_TABLE, Item: updatedMission }));
+  return { statusCode: 200, headers, body: JSON.stringify(updatedMission) };
 }
 
 async function deleteMission(id) {
