@@ -171,7 +171,9 @@ Use get_constraints_schema and save_constraints tools.`;
   generateDesignSolutions: async (missionId: string, objectives: Objective[] = [], requirements: Requirement[] = [], constraints: Constraint[] = []): Promise<GenerationResponse<DesignSolution>> => {
     try {
       const prompt = `Generate 1 complete spacecraft design solution with ALL 8 standard components (payload, power, avionics, adcs, communications, structure, thermal, propulsion), sun-synchronous orbit, and ground stations.
-Use get_solutions_schema and save_solutions tools.`;
+Use get_solutions_schema and save_solutions tools.
+
+After generating the solution, validate it against the mission requirements using save_validation_reports tool.`;
       
       const response = await missionAPI.sendChatMessage(missionId, prompt);
       return { success: true, message: response.response };
@@ -193,8 +195,9 @@ Then generate ALL mission elements in sequence:
 2. REQUIREMENTS: Use get_requirements_schema and save_requirements tools
 3. CONSTRAINTS: Use get_constraints_schema and save_constraints tools
 4. DESIGN SOLUTIONS: Use get_solutions_schema and save_solutions tools
+5. VALIDATION: After generating solutions, validate each solution against requirements using save_validation_reports tool
 
-This creates a complete early-phase mission analysis baseline.`;
+This creates a complete early-phase mission analysis baseline with validation results.`;
       
       const response = await missionAPI.sendChatMessage(missionId, prompt);
       return { success: true, message: response.response };

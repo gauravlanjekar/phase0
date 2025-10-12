@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Paper, TextInput, Button, Title, Group, Grid, Card, Text, Stack, ActionIcon, Box, Badge, Modal, Timeline, Loader, Alert } from '@mantine/core';
-import { IconPlus, IconTrash, IconRocket, IconLogout, IconSatellite, IconCalendar, IconCheck, IconX, IconTarget, IconClipboardList, IconLock, IconTool } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconRocket, IconLogout, IconSatellite, IconCalendar, IconCheck, IconX, IconTarget, IconClipboardList, IconLock, IconTool, IconMicrophone, IconMicrophoneOff } from '@tabler/icons-react';
 import { Mission, TimelineStep, MissionCreationProgress } from '../types/models';
 import { missionAPI } from '../services/api';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 const Dashboard: React.FC = () => {
   const [missions, setMissions] = useState<Mission[]>([]);
@@ -12,6 +13,7 @@ const Dashboard: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creationProgress, setCreationProgress] = useState<MissionCreationProgress | null>(null);
   const navigate = useNavigate();
+  const { transcript, isListening, startListening, stopListening, resetTranscript, isSupported } = useSpeechRecognition();
 
   useEffect(() => {
     if (!localStorage.getItem('isAuthenticated')) {
@@ -20,6 +22,12 @@ const Dashboard: React.FC = () => {
     }
     loadMissions();
   }, [navigate]);
+
+  useEffect(() => {
+    if (transcript) {
+      setNewMissionBrief(transcript.trim());
+    }
+  }, [transcript]);
 
   const loadMissions = async () => {
     try {
@@ -199,23 +207,37 @@ const Dashboard: React.FC = () => {
             <IconSatellite size={24} color="#667eea" />
             <Title order={2} c="white">Create New Mission</Title>
           </Group>
-          <Text c="dimmed" mb="md">AI will automatically generate objectives, requirements, constraints, and design solutions</Text>
+          <Text c="dimmed" mb="md">
+            AI will automatically generate objectives, requirements, constraints, and design solutions
+            {isSupported && <Text span c="blue" ml="xs">• Click the microphone to speak your mission brief</Text>}
+          </Text>
           <Group>
             <TextInput
-              placeholder="Describe your mission objectives..."
+              placeholder={isListening ? "Listening..." : "Describe your mission objectives..."}
               value={newMissionBrief}
               onChange={(e) => setNewMissionBrief(e.target.value)}
               style={{ flex: 1 }}
               size="md"
               styles={{
                 input: {
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: isListening ? 'rgba(255, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+                  border: isListening ? '1px solid rgba(255, 0, 0, 0.3)' : '1px solid rgba(255, 255, 255, 0.2)',
                   color: 'white',
                   '&::placeholder': { color: 'rgba(255, 255, 255, 0.6)' }
                 }
               }}
             />
+            {isSupported && (
+              <ActionIcon
+                onClick={isListening ? stopListening : () => { resetTranscript(); startListening(); }}
+                size="lg"
+                variant={isListening ? "filled" : "light"}
+                color={isListening ? "red" : "blue"}
+                style={{ animation: isListening ? 'pulse 1.5s infinite' : 'none' }}
+              >
+                {isListening ? <IconMicrophoneOff size={20} /> : <IconMicrophone size={20} />}
+              </ActionIcon>
+            )}
             <Button 
               onClick={() => newMissionBrief.trim() && createMission({ preventDefault: () => {} } as React.FormEvent)}
               leftSection={<IconPlus size={16} />}

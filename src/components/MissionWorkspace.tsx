@@ -191,6 +191,7 @@ const MissionWorkspace: React.FC = () => {
               <ObjectivesTab
                 missionId={id!}
                 objectives={objectives}
+                requirements={requirements}
                 onObjectivesChange={handleObjectivesChange}
                 onRefresh={loadTabData}
               />

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { Stack, Group, Button, TextInput, Textarea, Select, Card, Text, Badge, ActionIcon, Title, Box, Modal, Collapse, Grid } from '@mantine/core';
-import { IconPlus, IconTrash, IconWand, IconTarget, IconUsers, IconNotes, IconEdit, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { IconPlus, IconTrash, IconWand, IconTarget, IconUsers, IconNotes, IconEdit, IconChevronDown, IconChevronUp, IconLink } from '@tabler/icons-react';
 import { Objective, Priority, createObjective } from '../types/models';
 
 
 interface ObjectivesTabProps {
   missionId: string;
   objectives?: Objective[];
+  requirements?: any[];
   onObjectivesChange: (objectives: Objective[]) => void;
   onRefresh?: () => void;
 }
@@ -14,6 +15,7 @@ interface ObjectivesTabProps {
 const ObjectivesTab: React.FC<ObjectivesTabProps> = ({
   missionId,
   objectives,
+  requirements,
   onObjectivesChange,
   onRefresh
 }) => {
@@ -271,6 +273,16 @@ Use get_objectives_schema and save_objectives tools.`;
                           Has notes
                         </Badge>
                       )}
+                      {(() => {
+                        const linkedCount = (requirements || []).filter(req => 
+                          req.linkedObjectives && req.linkedObjectives.includes(objective.id)
+                        ).length;
+                        return linkedCount > 0 && (
+                          <Badge color="blue" size="sm" leftSection={<IconLink size={12} />}>
+                            {linkedCount} requirements
+                          </Badge>
+                        );
+                      })()}
                     </Group>
                   </Stack>
                   
@@ -346,6 +358,29 @@ Use get_objectives_schema and save_objectives tools.`;
                         </Text>
                       </Card>
                     )}
+                    
+                    {(() => {
+                      const linkedReqs = (requirements || []).filter(req => 
+                        req.linkedObjectives && req.linkedObjectives.includes(objective.id)
+                      );
+                      return linkedReqs.length > 0 && (
+                        <Card className="glass-card" p="md" radius="md" mt="md">
+                          <Text size="sm" fw={500} c="white" mb="xs">
+                            <Group gap="xs" align="center">
+                              <IconLink size={14} />
+                              Linked Requirements ({linkedReqs.length})
+                            </Group>
+                          </Text>
+                          <Stack gap="xs">
+                            {linkedReqs.map((req: any) => (
+                              <Badge key={req.id} color="blue" size="sm" variant="light">
+                                {req.title}
+                              </Badge>
+                            ))}
+                          </Stack>
+                        </Card>
+                      );
+                    })()}
                   </Box>
                 </Collapse>
               </Stack>
