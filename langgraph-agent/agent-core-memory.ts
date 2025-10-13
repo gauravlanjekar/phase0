@@ -54,6 +54,11 @@ export class AgentCoreMemory {
   // Retrieve conversation memory from Agent Core
   async getMemory(sessionId: string): Promise<any[]> {
     try {
+      if (!sessionId) {
+        console.warn('No sessionId provided for memory retrieval');
+        return [];
+      }
+      
       const command = new ListEventsCommand({
         memoryId: this.memoryId,
         sessionId,

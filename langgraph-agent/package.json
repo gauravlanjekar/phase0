@@ -7,16 +7,20 @@
     "build": "tsc",
     "start": "node dist/agent.js",
     "dev": "ts-node agent.ts",
+    "dev:instrumented": "NODE_OPTIONS='--require @aws/aws-distro-opentelemetry-node-autoinstrumentation/register' OTEL_LOG_LEVEL=debug OTEL_SERVICE_NAME=mission-design-agent ts-node agent.ts",
     "watch": "tsc --watch"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-agentcore": "^3.904.0",
+    "@aws-sdk/client-bedrock-agentcore": "^3.908.0",
+    "@aws-sdk/client-bedrock-agentcore-control": "^3.908.0",
+    "@aws/aws-distro-opentelemetry-node-autoinstrumentation": "^0.7.0",
     "@langchain/langgraph": "^0.4.9",
-    "@langchain/openai": "^0.6.14",
+    "@langchain/openai": "^0.6.15",
     "axios": "^1.4.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "langchain": "^0.3.35"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",
