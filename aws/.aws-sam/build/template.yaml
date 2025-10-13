@@ -116,6 +116,68 @@ Resources:
         AllowOrigin: '''*'''
       Auth:
         ApiKeyRequired: false
+  UIBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: mission-admin-ui-${Environment}-${AWS::AccountId}
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+  UIBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: UIBucket
+      PolicyDocument:
+        Statement:
+        - Sid: PublicReadGetObject
+          Effect: Allow
+          Principal: '*'
+          Action: s3:GetObject
+          Resource:
+            Fn::Sub: ${UIBucket.Arn}/*
+  UIDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+        - DomainName:
+            Fn::GetAtt:
+            - UIBucket
+            - RegionalDomainName
+          Id: S3Origin
+          S3OriginConfig:
+            OriginAccessIdentity: ''
+        Enabled: true
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          CachedMethods:
+          - GET
+          - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CustomErrorResponses:
+        - ErrorCode: 404
+          ResponseCode: 200
+          ResponsePagePath: /index.html
+        - ErrorCode: 403
+          ResponseCode: 200
+          ResponsePagePath: /index.html
+        PriceClass: PriceClass_100
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
@@ -124,3 +186,17 @@ Outputs:
     Export:
       Name:
         Fn::Sub: ${AWS::StackName}-ApiUrl
+  UIBucketName:
+    Description: S3 bucket name for UI hosting
+    Value:
+      Ref: UIBucket
+    Export:
+      Name:
+        Fn::Sub: ${AWS::StackName}-UIBucket
+  UIUrl:
+    Description: CloudFront distribution URL for UI
+    Value:
+      Fn::Sub: https://${UIDistribution.DomainName}
+    Export:
+      Name:
+        Fn::Sub: ${AWS::StackName}-UIUrl

@@ -22,6 +22,10 @@ if ! command -v sam &> /dev/null; then
     exit 1
 fi
 
+# Build React UI
+echo "🏗️ Building React UI..."
+npm run build
+
 # Install Lambda dependencies
 echo "📦 Installing Lambda dependencies..."
 cd aws/lambda
@@ -42,19 +46,42 @@ sam deploy \
   --no-confirm-changeset \
   --no-fail-on-empty-changeset
 
-# Get API URL
+# Get outputs
 API_URL=$(aws cloudformation describe-stacks \
   --stack-name $STACK_NAME \
   --region $REGION \
   --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
   --output text)
 
+BUCKET_NAME=$(aws cloudformation describe-stacks \
+  --stack-name $STACK_NAME \
+  --region $REGION \
+  --query 'Stacks[0].Outputs[?OutputKey==`UIBucketName`].OutputValue' \
+  --output text)
+
+UI_URL=$(aws cloudformation describe-stacks \
+  --stack-name $STACK_NAME \
+  --region $REGION \
+  --query 'Stacks[0].Outputs[?OutputKey==`UIUrl`].OutputValue' \
+  --output text)
+
+# Upload UI to S3
+echo "📤 Uploading UI to S3..."
+aws s3 sync ../build s3://$BUCKET_NAME --delete --region $REGION
+
+# Invalidate CloudFront cache
+DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+  --query "DistributionList.Items[?Origins.Items[0].DomainName=='$BUCKET_NAME.s3.$REGION.amazonaws.com'].Id" \
+  --output text)
+
+if [ ! -z "$DISTRIBUTION_ID" ]; then
+  echo "🔄 Invalidating CloudFront cache..."
+  aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*" > /dev/null
+fi
+
 echo "✅ Deployment complete!"
-echo "🌐 API URL: $API_URL"
-echo ""
-echo "📝 Next steps:"
-echo "1. Update src/services/api.js with the new API URL:"
-echo "   const API_BASE = '$API_URL';"
-echo "2. Redeploy your React app"
+echo "🌐 UI URL: $UI_URL"
+echo "🔗 API URL: $API_URL"
+echo "📦 S3 Bucket: $BUCKET_NAME"
 
 cd ..

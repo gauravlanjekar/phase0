@@ -111,9 +111,83 @@ Resources:
       Auth:
         ApiKeyRequired: false
 
+  # S3 Bucket for UI hosting
+  UIBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub mission-admin-ui-${Environment}-${AWS::AccountId}
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # S3 Bucket Policy for public read access
+  UIBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref UIBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub "${UIBucket.Arn}/*"
+
+  # CloudFront Distribution
+  UIDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !GetAtt UIBucket.RegionalDomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        Enabled: true
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        PriceClass: PriceClass_100
+
 Outputs:
   ApiUrl:
     Description: API Gateway endpoint URL
     Value: !Sub "https://${MissionApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
     Export:
       Name: !Sub "${AWS::StackName}-ApiUrl"
+  
+  UIBucketName:
+    Description: S3 bucket name for UI hosting
+    Value: !Ref UIBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-UIBucket"
+  
+  UIUrl:
+    Description: CloudFront distribution URL for UI
+    Value: !Sub "https://${UIDistribution.DomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-UIUrl"
