@@ -1,13 +1,18 @@
 import { Mission, Objective, Requirement, Constraint, DesignSolution } from '../types/models';
 
 const API_BASE = process.env.REACT_APP_API_BASE || 'https://paf4sflt0a.execute-api.eu-central-1.amazonaws.com/dev';
-const LANGGRAPH_BASE = process.env.REACT_APP_LANGGRAPH_BASE || 'http://localhost:3002';
+const LANGGRAPH_BASE = process.env.REACT_APP_LANGGRAPH_BASE || 'http://localhost:8080';
 
 
 
 interface ChatResponse {
   response: string;
-  threadId: string;
+  sessionId: string;
+  conversationHistory?: Array<{
+    text: string;
+    isUser: boolean;
+    timestamp: string;
+  }>;
 }
 
 interface GenerationResponse<T> {
@@ -69,18 +74,21 @@ export const missionAPI = {
   // Send chat message with streaming support
   sendChatMessage: async (missionId: string, message: string, threadId?: string, onProgress?: (message: string) => void): Promise<ChatResponse> => {
     try {
-      const useStreaming = !!onProgress;
-      const response = await fetch(`${LANGGRAPH_BASE}/chat`, {
+      const sessionId = threadId || `mission_${missionId}`;
+      const response = await fetch(`${LANGGRAPH_BASE}/invocations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, missionId, threadId, stream: useStreaming })
+        body: JSON.stringify({ 
+          sessionId,
+          input: { prompt: `Working with Mission ID: ${missionId}. Use this ID when calling tools that require missionId parameter.\n\n${message}` }
+        })
       });
       
-      if (useStreaming && response.body) {
+      if (response.body) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let finalResponse = '';
-        let finalThreadId = threadId || `mission_${missionId}`;
+        let finalSessionId = sessionId;
         
         while (true) {
           const { done, value } = await reader.read();
@@ -93,11 +101,16 @@ export const missionAPI = {
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6));
-                if (data.type === 'progress') {
-                  onProgress(data.message);
-                } else if (data.type === 'complete') {
-                  finalResponse = data.response;
-                  finalThreadId = data.threadId;
+                if (data.completion) {
+                  finalResponse = data.completion;
+                  finalSessionId = data.sessionId;
+                  if (data.conversationHistory) {
+                    return { 
+                      response: finalResponse, 
+                      sessionId: finalSessionId,
+                      conversationHistory: data.conversationHistory
+                    };
+                  }
                 }
               } catch (e) {
                 // Ignore parsing errors
@@ -106,9 +119,9 @@ export const missionAPI = {
           }
         }
         
-        return { response: finalResponse, threadId: finalThreadId };
+        return { response: finalResponse, sessionId: finalSessionId };
       } else {
-        return response.json();
+        throw new Error('No response body');
       }
     } catch (error) {
       console.error('LangGraph agent not available, using fallback');
@@ -233,10 +246,51 @@ This creates a complete early-phase mission analysis baseline with validation re
     }
   },
 
+  // Send Agent Core format message
+  sendAgentCoreMessage: async (sessionId: string, inputText: string, sessionState?: any): Promise<{ completion: string; sessionId: string }> => {
+    const response = await fetch(`${LANGGRAPH_BASE}/invocations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, input: { prompt: inputText }, sessionState })
+    });
+    
+    if (response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let finalCompletion = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.completion) {
+                finalCompletion = data.completion;
+              }
+            } catch (e) {
+              // Ignore parsing errors
+            }
+          }
+        }
+      }
+      
+      
+      return { completion: finalCompletion, sessionId };
+    }
+    
+    throw new Error('No response body');
+  },
+
   // Get conversation history
-  getConversationHistory: async (missionId: string, threadId: string): Promise<{ messages: any[] }> => {
+  getConversationHistory: async (missionId: string, sessionId: string): Promise<{ messages: any[] }> => {
     try {
-      const response = await fetch(`${LANGGRAPH_BASE}/history/${threadId}`);
+      const response = await fetch(`${LANGGRAPH_BASE}/history/${sessionId}`);
       if (response.ok) {
         return response.json();
       }

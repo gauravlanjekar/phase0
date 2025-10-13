@@ -1,3 +1,5 @@
+// Telemetry now handled by AWS Distro auto-instrumentation
+// import './telemetry';
 import 'dotenv/config';
 import { ChatOpenAI } from '@langchain/openai';
 
@@ -150,7 +152,7 @@ const memoryManager = new HybridMemoryManager(
   process.env.AGENT_CORE_MEMORY_ID || 'mission-design-memory'
 );
 
-// Legacy conversation memory for backward compatibility
+// Local conversation memory for fallback
 const conversationMemory = new Map<string, any[]>();
 export { conversationMemory, memoryManager };
 
@@ -158,6 +160,14 @@ export { conversationMemory, memoryManager };
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// GET /ping for Agent Core compatibility
+app.get('/ping', (req, res) => {
+  res.json({
+    status: 'healthy',
+    time_of_last_update: Math.floor(Date.now() / 1000)
+  });
+});
 
 // Helper function for concise progress messages
 function getProgressMessage(toolName: string): string {
@@ -178,91 +188,61 @@ function getProgressMessage(toolName: string): string {
   return messages[toolName] || `⚙️ Running ${toolName}...`;
 }
 
-// Chat endpoint with streaming
-app.post('/chat', async (req: Request, res: Response) => {
-  const { message, missionId, threadId, stream = false } = req.body;
-  
+// Agent Core invocations endpoint
+app.post('/invocations', async (req: Request, res: Response) => {
   try {
-    const contextMessage = `Working with Mission ID: ${missionId}. Use this ID when calling tools that require missionId parameter.`;
-    const currentThreadId = threadId || `mission_${missionId}`;
+    const hasInputFormat = 'input' in req.body && req.body.input?.prompt;
+    const message = hasInputFormat ? req.body.input.prompt : req.body.inputText;
+    const sessionId = req.body.sessionId;
     
-    const conversationHistory = await memoryManager.getConversation(currentThreadId);
-    const userMessage = new HumanMessage(`${contextMessage}\n\n${message}`);
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+    
+    const conversationHistory = await memoryManager.getConversation(sessionId);
+    const userMessage = new HumanMessage(message);
     const allMessages = [...conversationHistory, userMessage];
     
-    const agent = getAgent();
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
     
-    if (stream) {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*'
-      });
-      
-      let finalResult;
-      
-      for await (const chunk of await agent.stream(
-        { messages: allMessages },
-        { streamMode: "updates" }
-      )) {
-        const nodeNames = Object.keys(chunk);
-        for (const nodeName of nodeNames) {
-          if (chunk[nodeName]) {
-            finalResult = chunk[nodeName];
-            
-            // Send concise progress updates
-            if (nodeName === 'agent') {
-              const lastMessage = chunk[nodeName].messages?.[chunk[nodeName].messages.length - 1];
-              if (lastMessage?.tool_calls?.length > 0) {
-                const toolName = lastMessage.tool_calls[0].name;
-                const progressMsg = getProgressMessage(toolName);
-                res.write(`data: ${JSON.stringify({ type: 'progress', message: progressMsg })}\n\n`);
-              }
-            }
-          }
+    const agent = getAgent();
+    let finalResult;
+    
+    for await (const chunk of await agent.stream(
+      { messages: allMessages },
+      { streamMode: "updates" }
+    )) {
+      const nodeNames = Object.keys(chunk);
+      for (const nodeName of nodeNames) {
+        if (chunk[nodeName]) {
+          finalResult = chunk[nodeName];
         }
       }
-      
-      const lastMessage = finalResult.messages[finalResult.messages.length - 1];
-      res.write(`data: ${JSON.stringify({ 
-        type: 'complete', 
-        response: lastMessage.content.toString(),
-        threadId: currentThreadId 
-      })}\n\n`);
-      
-      const updatedHistory = finalResult.messages.slice(-20);
-      await memoryManager.storeConversation(currentThreadId, updatedHistory);
-      conversationMemory.set(currentThreadId, updatedHistory);
-      
-      res.end();
-    } else {
-      // Non-streaming response (existing behavior)
-      let finalResult;
-      
-      for await (const chunk of await agent.stream(
-        { messages: allMessages },
-        { streamMode: "updates" }
-      )) {
-        const nodeNames = Object.keys(chunk);
-        for (const nodeName of nodeNames) {
-          if (chunk[nodeName]) {
-            finalResult = chunk[nodeName];
-          }
-        }
-      }
-      
-      const updatedHistory = finalResult.messages.slice(-20);
-      await memoryManager.storeConversation(currentThreadId, updatedHistory);
-      conversationMemory.set(currentThreadId, updatedHistory);
-      
-      const lastMessage = finalResult.messages[finalResult.messages.length - 1];
-      
-      res.json({ 
-        response: lastMessage.content.toString(),
-        threadId: currentThreadId
-      });
     }
+    
+    const lastMessage = finalResult.messages[finalResult.messages.length - 1];
+    const updatedHistory = finalResult.messages.slice(-20);
+    
+    res.write(`data: ${JSON.stringify({
+      completion: lastMessage.content,
+      sessionId: sessionId,
+      sessionState: req.body.sessionState,
+      conversationHistory: updatedHistory.map((msg: any) => ({
+        text: msg.content?.toString() || '',
+        isUser: msg.constructor.name === 'HumanMessage',
+        timestamp: new Date().toISOString()
+      }))
+    })}\n\n`);
+    res.write('data: [DONE]\n\n');
+    await memoryManager.storeConversation(sessionId, updatedHistory);
+    conversationMemory.set(sessionId, updatedHistory);
+    
+    res.end();
   } catch (error) {
     console.error('Chat failed:', (error as Error).message);
     res.status(500).json({ error: (error as Error).message });
@@ -271,7 +251,12 @@ app.post('/chat', async (req: Request, res: Response) => {
 
 
 
-const PORT = process.env.PORT || 3002;
-app.listen(PORT, () => {
-  console.log(`LangGraph agent server running on port ${PORT}`);
+
+
+const PORT = parseInt(process.env.PORT || '8080');
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  console.log(`LangGraph agent server running on ${HOST}:${PORT}`);
+  console.log(`/invocations endpoint configured for Agent Core format`);
+  console.log(`AWS Distro for OpenTelemetry (ADOT) tracing enabled`);
 });

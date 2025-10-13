@@ -77,18 +77,32 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
       );
       
       // Always update threadId from response to maintain conversation
-      if (response.threadId) {
-        setThreadId(response.threadId);
+      if (response.sessionId) {
+        setThreadId(response.sessionId);
       }
 
-      const agentMessage = {
-        id: (Date.now() + 1).toString(),
-        text: response.response,
-        isUser: false,
-        timestamp: new Date()
-      };
-
-      addMessage(missionId, agentMessage);
+      // If conversation history is provided, sync with it
+      if (response.conversationHistory) {
+        // Clear existing messages and load from history
+        response.conversationHistory.forEach((historyMsg, index) => {
+          const message = {
+            id: `history_${index}`,
+            text: historyMsg.text,
+            isUser: historyMsg.isUser,
+            timestamp: new Date(historyMsg.timestamp)
+          };
+          addMessage(missionId, message);
+        });
+      } else {
+        // Fallback: add just the agent response
+        const agentMessage = {
+          id: (Date.now() + 1).toString(),
+          text: response.response,
+          isUser: false,
+          timestamp: new Date()
+        };
+        addMessage(missionId, agentMessage);
+      }
       
       // Trigger data refresh after agent response
       window.dispatchEvent(new CustomEvent('agentResponseReceived', { 
