@@ -20,7 +20,11 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string>('');
-  const [threadId, setThreadId] = useState<string>(`mission_${missionId}`);
+  const [threadId, setThreadId] = useState<string>(() => {
+    // Generate random 33-character threadId
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    return Array.from({length: 33}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  });
   const viewport = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -32,9 +36,6 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
   }, [messages]);
 
   useEffect(() => {
-    // Update threadId when missionId changes
-    const newThreadId = `mission_${missionId}`;
-    setThreadId(newThreadId);
     // Load conversation history for this mission
     loadHistory(missionId);
   }, [missionId, loadHistory]);

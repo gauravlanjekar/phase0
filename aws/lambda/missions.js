@@ -1,12 +1,14 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand, PutCommand, DeleteCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
+const { BedrockAgentCoreClient, InvokeAgentRuntimeCommand } = require('@aws-sdk/client-bedrock-agentcore');
 const { v4: uuidv4 } = require('uuid');
-const axios = require('axios');
 
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'eu-central-1' });
 const dynamodb = DynamoDBDocumentClient.from(dynamoClient);
+const agentCoreClient = new BedrockAgentCoreClient({ region: process.env.AWS_REGION || 'eu-central-1' });
 const MISSIONS_TABLE = process.env.MISSIONS_TABLE;
 const MISSION_DATA_TABLE = process.env.MISSION_DATA_TABLE;
+const AGENT_RUNTIME_ARN = process.env.AGENT_RUNTIME_ARN;
 
 const headers = {
   'Content-Type': 'application/json',
@@ -36,6 +38,9 @@ exports.handler = async (event) => {
         if (httpMethod === 'PUT') return await saveTabData(pathParameters.id, pathParameters.tabIndex, JSON.parse(body));
         break;
       
+      case '/missions/{id}/chat':
+        if (httpMethod === 'POST') return await chatWithAgent(pathParameters.id, JSON.parse(body));
+        break;
 
     }
     
@@ -133,6 +138,88 @@ async function saveTabData(missionId, tabIndex, data) {
 }
 
 
+
+async function chatWithAgent(missionId, { message, threadId }) {
+  try {
+    const sessionId = threadId || `mission_${missionId}`;
+    const fullMessage = `Working with Mission ID: ${missionId}. Use this ID when calling tools that require missionId parameter.\n\n${message}`;
+    
+    const payload = JSON.stringify({
+      input: { prompt: fullMessage },
+      sessionId: sessionId
+    });
+    
+    const command = new InvokeAgentRuntimeCommand({
+      runtimeSessionId: sessionId,
+      agentRuntimeArn: AGENT_RUNTIME_ARN,
+      qualifier: "DEFAULT",
+      contentType: "application/json",
+      payload: new TextEncoder().encode(payload)
+    });
+    
+    console.log('Invoking agent with:', { 
+      sessionId, 
+      missionId, 
+      messageLength: fullMessage.length,
+      agentRuntimeArn: AGENT_RUNTIME_ARN
+    });
+
+    const response = await agentCoreClient.send(command);
+    console.log('Agent response received:', {
+      statusCode: response.$metadata?.httpStatusCode,
+      requestId: response.$metadata?.requestId
+    });
+    const textResponse = await response.response.transformToString();
+    
+    // Parse SSE response to extract the actual completion
+    const lines = textResponse.split('\n');
+    let completion = '';
+    let conversationHistory = [];
+    
+    for (const line of lines) {
+      if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+        try {
+          const data = JSON.parse(line.substring(6));
+          if (data.completion) {
+            completion = data.completion;
+          }
+          if (data.conversationHistory) {
+            conversationHistory = data.conversationHistory;
+          }
+        } catch (e) {
+          // Skip invalid JSON lines
+        }
+      }
+    }
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        response: completion,
+        threadId: sessionId,
+        conversationHistory: conversationHistory
+      })
+    };
+  } catch (error) {
+    console.error('Agent invocation failed:', {
+      message: error.message,
+      code: error.code,
+      statusCode: error.$metadata?.httpStatusCode,
+      requestId: error.$metadata?.requestId,
+      stack: error.stack
+    });
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        error: 'Failed to communicate with agent',
+        details: error.message,
+        code: error.code
+      })
+    };
+  }
+}
 
 function createDefaultRequirements() {
   const categories = [

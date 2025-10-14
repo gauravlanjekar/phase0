@@ -46,6 +46,8 @@ Resources:
             Ref: MissionsTable
           MISSION_DATA_TABLE:
             Ref: MissionDataTable
+          AGENT_RUNTIME_ARN:
+            Fn::Sub: arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/phase0_agent-kpLtDhGVlC
       Policies:
       - DynamoDBCrudPolicy:
           TableName:
@@ -53,6 +55,13 @@ Resources:
       - DynamoDBCrudPolicy:
           TableName:
             Ref: MissionDataTable
+      - Statement:
+        - Effect: Allow
+          Action:
+          - bedrock-agentcore:InvokeAgentRuntime
+          Resource:
+          - Fn::Sub: arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/phase0_agent-kpLtDhGVlC
+          - Fn::Sub: arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/phase0_agent-kpLtDhGVlC/*
       Events:
         GetMissions:
           Type: Api
@@ -103,6 +112,13 @@ Resources:
               Ref: MissionApi
             Path: /missions/{id}
             Method: put
+        ChatWithAgent:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: MissionApi
+            Path: /missions/{id}/chat
+            Method: post
     Metadata:
       SamResourceId: MissionFunction
   MissionApi:

@@ -11,8 +11,8 @@
     "watch": "tsc --watch"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-agentcore": "^3.908.0",
-    "@aws-sdk/client-bedrock-agentcore-control": "^3.908.0",
+    "@aws-sdk/client-bedrock-agentcore": "^3.909.0",
+    "@aws-sdk/client-bedrock-agentcore-control": "^3.909.0",
     "@aws/aws-distro-opentelemetry-node-autoinstrumentation": "^0.7.0",
     "@langchain/langgraph": "^0.4.9",
     "@langchain/openai": "^0.6.15",

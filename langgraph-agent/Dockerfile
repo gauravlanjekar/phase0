@@ -18,7 +18,7 @@ RUN npm run build
 EXPOSE 8080
 
 # Set OpenTelemetry auto-instrumentation
-ENV NODE_OPTIONS="--require @aws/aws-distro-opentelemetry-node-autoinstrumentation/register"
+#ENV NODE_OPTIONS="--require @aws/aws-distro-opentelemetry-node-autoinstrumentation/register"
 
 # Run application
 CMD ["node", "dist/agent.js"]

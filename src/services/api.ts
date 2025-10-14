@@ -73,65 +73,71 @@ export const missionAPI = {
 
   // Send chat message with streaming support
   sendChatMessage: async (missionId: string, message: string, threadId?: string, onProgress?: (message: string) => void): Promise<ChatResponse> => {
-    try {
-      const sessionId = threadId || `mission_${missionId}`;
-      const response = await fetch(`${LANGGRAPH_BASE}/invocations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          sessionId,
-          input: { prompt: `Working with Mission ID: ${missionId}. Use this ID when calling tools that require missionId parameter.\n\n${message}` }
-        })
-      });
-      
-      if (response.body) {
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let finalResponse = '';
-        let finalSessionId = sessionId;
+    // Check if running locally (development)
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    if (isLocal) {
+      // Local development - call agent directly
+      try {
+        const sessionId = threadId || `mission_${missionId}`;
+        const response = await fetch(`${LANGGRAPH_BASE}/invocations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            sessionId,
+            input: { prompt: `Working with Mission ID: ${missionId}. Use this ID when calling tools that require missionId parameter.\n\n${message}` }
+          })
+        });
         
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        if (response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let finalResponse = '';
+          let finalSessionId = sessionId;
           
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                if (data.completion) {
-                  finalResponse = data.completion;
-                  finalSessionId = data.sessionId;
-                  if (data.conversationHistory) {
-                    return { 
-                      response: finalResponse, 
-                      sessionId: finalSessionId,
-                      conversationHistory: data.conversationHistory
-                    };
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  if (data.completion) {
+                    finalResponse = data.completion;
+                    finalSessionId = data.sessionId;
+                    if (data.conversationHistory) {
+                      return { 
+                        response: finalResponse, 
+                        sessionId: finalSessionId,
+                        conversationHistory: data.conversationHistory
+                      };
+                    }
                   }
+                } catch (e) {
+                  // Ignore parsing errors
                 }
-              } catch (e) {
-                // Ignore parsing errors
               }
             }
           }
+          
+          return { response: finalResponse, sessionId: finalSessionId };
         }
-        
-        return { response: finalResponse, sessionId: finalSessionId };
-      } else {
-        throw new Error('No response body');
+      } catch (error) {
+        console.error('Local agent not available, falling back to API');
       }
-    } catch (error) {
-      console.error('LangGraph agent not available, using fallback');
-      const response = await fetch(`${API_BASE}/missions/${missionId}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message })
-      });
-      return response.json();
     }
+    
+    // Production or fallback - call through API
+    const response = await fetch(`${API_BASE}/missions/${missionId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, threadId })
+    });
+    return response.json();
   },
 
   // Generate objectives
