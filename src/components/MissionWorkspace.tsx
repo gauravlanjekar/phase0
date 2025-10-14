@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Paper, Tabs, Button, Group, Title, Drawer, Box, Badge, ActionIcon } from '@mantine/core';
+import { Container, Paper, Tabs, Button, Group, Title, Drawer, Box, Badge, ActionIcon, Text } from '@mantine/core';
 import { IconArrowLeft, IconMessageCircle, IconTarget, IconClipboardList, IconShield, IconSatellite, IconRocket } from '@tabler/icons-react';
 import { Objective, Requirement, Constraint, DesignSolution, Mission } from '../types/models';
 import { missionAPI } from '../services/api';
@@ -144,6 +144,12 @@ const MissionWorkspace: React.FC = () => {
                 missionName={mission?.name}
                 onNameUpdate={(name) => setMission(prev => prev ? {...prev, name} : null)}
               />
+              {mission?.brief && (
+                <Paper className="glass-card" p="md" radius="md" mt="sm" style={{ maxWidth: '600px' }}>
+                  <Title order={6} c="dimmed" mb="xs">Mission Brief</Title>
+                  <Text c="white" size="sm">{mission.brief}</Text>
+                </Paper>
+              )}
             </Box>
           </Group>
         </Group>

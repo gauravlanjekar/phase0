@@ -1,6 +1,6 @@
 import { Mission, Objective, Requirement, Constraint, DesignSolution } from '../types/models';
 
-const API_BASE = process.env.REACT_APP_API_BASE || 'https://paf4sflt0a.execute-api.eu-central-1.amazonaws.com/dev';
+const API_BASE = process.env.REACT_APP_API_BASE || 'https://api.phase0.gauravlanjekar.in';
 const LANGGRAPH_BASE = process.env.REACT_APP_LANGGRAPH_BASE || 'http://localhost:8080';
 
 
@@ -109,6 +109,7 @@ export const missionAPI = {
                   if (data.completion) {
                     finalResponse = data.completion;
                     finalSessionId = data.sessionId;
+                    onProgress?.(data.completion);
                     if (data.conversationHistory) {
                       return { 
                         response: finalResponse, 
@@ -131,13 +132,62 @@ export const missionAPI = {
       }
     }
     
-    // Production or fallback - call through API
-    const response = await fetch(`${API_BASE}/missions/${missionId}/chat`, {
+    // Production - use streaming endpoint
+    const response = await fetch(`${API_BASE}/missions/${missionId}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, threadId })
     });
-    return response.json();
+    
+    if (response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalData = { response: '', sessionId: threadId || `mission_${missionId}`, conversationHistory: [] };
+      
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+              try {
+                const data = JSON.parse(line.substring(6));
+                if (data.completion) {
+                  onProgress?.(data.completion);
+                  finalData.response = data.completion;
+                }
+                if (data.sessionId) {
+                  finalData.sessionId = data.sessionId;
+                }
+                if (data.conversationHistory) {
+                  finalData.conversationHistory = data.conversationHistory;
+                }
+              } catch (e) {
+                // Skip invalid JSON
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      
+      return finalData;
+    }
+    
+    // Fallback to non-streaming
+    const fallbackResponse = await fetch(`${API_BASE}/missions/${missionId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, threadId })
+    });
+    return fallbackResponse.json();
   },
 
   // Generate objectives

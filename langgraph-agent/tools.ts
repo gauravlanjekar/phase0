@@ -1,7 +1,7 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v4';
 import axios from 'axios';
-import { generateMissionNameTool } from './mission-name-tool';
+
 
 // Import schemas from generator
 let ObjectiveSchema: any;
@@ -238,6 +238,52 @@ export const saveConstraints = tool(
     schema: z.object({ missionId: z.string(), constraints: z.array(ConstraintSchema) })
   }
 );
+
+// Mission Brief and Name Tool
+export const saveMissionBriefAndName = tool(
+  async ({ missionId, brief, name }: { missionId: string; brief?: string; name?: string }) => {
+    try {
+      const updateData: any = {};
+      if (brief) updateData.brief = brief;
+      if (name) updateData.name = name;
+      
+      await axios.put(`${API_BASE}/missions/${missionId}`, updateData);
+      return `Updated mission ${missionId} with ${Object.keys(updateData).join(' and ')}.`;
+    } catch (error) {
+      log.error('Failed to update mission', { missionId, error: (error as any).message });
+      throw error;
+    }
+  },
+  {
+    name: 'save_mission_brief_and_name',
+    description: 'Save or update mission brief and/or name',
+    schema: z.object({ 
+      missionId: z.string(),
+      brief: z.string().optional(),
+      name: z.string().optional()
+    })
+  }
+);
+
+export const getMissionBriefAndName = tool(
+  async ({ missionId }: { missionId: string }) => {
+    try {
+      const response = await axios.get(`${API_BASE}/missions/${missionId}`);
+      const mission = response.data;
+      return `Mission Brief: ${mission.brief}\nMission Name: ${mission.name}`;
+    } catch (error) {
+      log.error('Failed to get mission brief and name', { missionId, error: (error as any).message });
+      throw error;
+    }
+  },
+  {
+    name: 'get_mission_brief_and_name',
+    description: 'Get the current mission brief and name',
+    schema: z.object({ missionId: z.string() })
+  }
+);
+
+
 
 export const getSolutionsSchema = tool(
   async () => {
@@ -853,6 +899,8 @@ export const saveValidationReportsTool = tool(
 // Export all tools as an array
 export const allTools = [
   getMissionDataTool,
+  getMissionBriefAndName,
+  saveMissionBriefAndName,
 
   getObjectivesSchema,
   saveObjectives,
@@ -877,6 +925,5 @@ export const allTools = [
   updateOrbitTool,
   searchInternetTool,
   flightDynamicsTool,
-  saveValidationReportsTool,
-  generateMissionNameTool
+  saveValidationReportsTool
 ];

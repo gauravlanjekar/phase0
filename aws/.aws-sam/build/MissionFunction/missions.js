@@ -18,28 +18,79 @@ const headers = {
 };
 
 exports.handler = async (event) => {
-  const { httpMethod, pathParameters, body, resource } = event;
+  const { httpMethod, body, path } = event;
+  
+  // Extract path parameters from ALB path
+  const pathParams = {};
+  let routePattern = path;
+  
+  // Match /missions/{id}
+  const missionIdMatch = path.match(/^\/missions\/([^/]+)$/);
+  if (missionIdMatch) {
+    pathParams.id = missionIdMatch[1];
+    routePattern = '/missions/{id}';
+  }
+  
+  // Match /missions/{id}/tabs/{tabIndex}
+  const tabMatch = path.match(/^\/missions\/([^/]+)\/tabs\/([^/]+)$/);
+  if (tabMatch) {
+    pathParams.id = tabMatch[1];
+    pathParams.tabIndex = tabMatch[2];
+    routePattern = '/missions/{id}/tabs/{tabIndex}';
+  }
+  
+
+  
+  // Match /missions/{id}/chat/stream (check this before /missions/{id}/chat)
+  const chatStreamMatch = path.match(/^\/missions\/([^/]+)\/chat\/stream$/);
+  if (chatStreamMatch) {
+    pathParams.id = chatStreamMatch[1];
+    routePattern = '/missions/{id}/chat/stream';
+  }
+  // Match /missions/{id}/chat (after checking stream)
+  else if (path.match(/^\/missions\/([^/]+)\/chat$/)) {
+    const chatMatch = path.match(/^\/missions\/([^/]+)\/chat$/);
+    pathParams.id = chatMatch[1];
+    routePattern = '/missions/{id}/chat';
+  }
+  
+  // Handle OPTIONS preflight requests
+  if (httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+      },
+      body: ''
+    };
+  }
 
   try {
-    switch (resource) {
+    switch (routePattern) {
       case '/missions':
         if (httpMethod === 'GET') return await getMissions();
         if (httpMethod === 'POST') return await createMission(JSON.parse(body));
         break;
       
       case '/missions/{id}':
-        if (httpMethod === 'GET') return await getMission(pathParameters.id);
-        if (httpMethod === 'PUT') return await updateMission(pathParameters.id, JSON.parse(body));
-        if (httpMethod === 'DELETE') return await deleteMission(pathParameters.id);
+        if (httpMethod === 'GET') return await getMission(pathParams.id);
+        if (httpMethod === 'PUT') return await updateMission(pathParams.id, JSON.parse(body));
+        if (httpMethod === 'DELETE') return await deleteMission(pathParams.id);
         break;
       
       case '/missions/{id}/tabs/{tabIndex}':
-        if (httpMethod === 'GET') return await getTabData(pathParameters.id, pathParameters.tabIndex);
-        if (httpMethod === 'PUT') return await saveTabData(pathParameters.id, pathParameters.tabIndex, JSON.parse(body));
+        if (httpMethod === 'GET') return await getTabData(pathParams.id, pathParams.tabIndex);
+        if (httpMethod === 'PUT') return await saveTabData(pathParams.id, pathParams.tabIndex, JSON.parse(body));
         break;
       
       case '/missions/{id}/chat':
-        if (httpMethod === 'POST') return await chatWithAgent(pathParameters.id, JSON.parse(body));
+        if (httpMethod === 'POST') return await chatWithAgent(pathParams.id, JSON.parse(body), false);
+        break;
+      
+      case '/missions/{id}/chat/stream':
+        if (httpMethod === 'POST') return await chatWithAgent(pathParams.id, JSON.parse(body), true);
         break;
 
     }
@@ -56,9 +107,14 @@ async function getMissions() {
 }
 
 async function createMission({ brief }) {
+  // Generate mission name from brief
+  const keywords = brief.toLowerCase().match(/\b(earth|observation|monitoring|imaging|satellite|climate|agriculture|disaster|forest|urban|ocean|weather)\b/g) || [];
+  const uniqueKeywords = [...new Set(keywords)];
+  const generatedName = `${uniqueKeywords[0] || 'earth'}-obs-${Date.now().toString().slice(-4)}`.toUpperCase().replace(/-/g, '_');
+  
   const mission = {
     id: uuidv4(),
-    name: `Mission ${uuidv4().slice(0, 8)}`,
+    name: generatedName,
     brief,
     createdAt: new Date().toISOString()
   };
@@ -100,15 +156,6 @@ async function getTabData(missionId, tabIndex) {
     
     let data = result.Item || { notes: '', status: 'Not Started' };
     
-    // Initialize objectives for tab 0 (Mission Objectives)
-    if (tabIndex === '0' && !data.objectives) {
-      data.objectives = [
-        { id: 'obj1', text: '' },
-        { id: 'obj2', text: '' },
-        { id: 'obj3', text: '' }
-      ];
-    }
-    
     // Initialize requirements for tab 1 (Mission Requirements)
     if (tabIndex === '1' && !data.requirements) {
       data.requirements = createDefaultRequirements();
@@ -117,13 +164,6 @@ async function getTabData(missionId, tabIndex) {
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (error) {
     const defaultData = { notes: '', status: 'Not Started' };
-    if (tabIndex === '0') {
-      defaultData.objectives = [
-        { id: 'obj1', text: '' },
-        { id: 'obj2', text: '' },
-        { id: 'obj3', text: '' }
-      ];
-    }
     if (tabIndex === '1') {
       defaultData.requirements = createDefaultRequirements();
     }
@@ -139,7 +179,7 @@ async function saveTabData(missionId, tabIndex, data) {
 
 
 
-async function chatWithAgent(missionId, { message, threadId }) {
+async function chatWithAgent(missionId, { message, threadId }, isStreaming = false) {
   try {
     const sessionId = threadId || `mission_${missionId}`;
     const fullMessage = `Working with Mission ID: ${missionId}. Use this ID when calling tools that require missionId parameter.\n\n${message}`;
@@ -161,7 +201,8 @@ async function chatWithAgent(missionId, { message, threadId }) {
       sessionId, 
       missionId, 
       messageLength: fullMessage.length,
-      agentRuntimeArn: AGENT_RUNTIME_ARN
+      agentRuntimeArn: AGENT_RUNTIME_ARN,
+      streaming: isStreaming
     });
 
     const response = await agentCoreClient.send(command);
@@ -169,14 +210,53 @@ async function chatWithAgent(missionId, { message, threadId }) {
       statusCode: response.$metadata?.httpStatusCode,
       requestId: response.$metadata?.requestId
     });
+    
     const textResponse = await response.response.transformToString();
+    
+    if (isStreaming) {
+      // Return raw SSE stream for streaming endpoints
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
+        },
+        body: textResponse,
+        isBase64Encoded: false
+      };
+    }
+    
+    // Parse SSE response for non-streaming endpoints
+    const lines = textResponse.split('\n');
+    let completion = '';
+    let conversationHistory = [];
+    
+    for (const line of lines) {
+      if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+        try {
+          const data = JSON.parse(line.substring(6));
+          if (data.completion) {
+            completion = data.completion;
+          }
+          if (data.conversationHistory) {
+            conversationHistory = data.conversationHistory;
+          }
+        } catch (e) {
+          // Skip invalid JSON lines
+        }
+      }
+    }
     
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        response: textResponse,
-        threadId: sessionId
+        response: completion,
+        threadId: sessionId,
+        conversationHistory: conversationHistory
       })
     };
   } catch (error) {

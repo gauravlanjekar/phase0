@@ -45,11 +45,7 @@ const Dashboard: React.FC = () => {
     if (!newMissionBrief.trim()) return;
 
     const steps: TimelineStep[] = [
-      { id: '1', title: 'Create Mission', description: 'Setting up mission framework', status: 'loading' },
-      { id: '2', title: 'Generate Objectives', description: 'AI analyzing mission brief for objectives', status: 'pending' },
-      { id: '3', title: 'Generate Requirements', description: 'Deriving technical requirements', status: 'pending' },
-      { id: '4', title: 'Generate Constraints', description: 'Identifying mission constraints', status: 'pending' },
-      { id: '5', title: 'Generate Design Solutions', description: 'Creating spacecraft designs', status: 'pending' }
+      { id: '1', title: 'Create Mission', description: 'Setting up mission framework and generating name', status: 'loading' }
     ];
 
     setCreationProgress({ missionId: '', steps, currentStep: 0, isComplete: false });
@@ -65,59 +61,10 @@ const Dashboard: React.FC = () => {
         currentStep: 1
       } : null);
 
-      // Step 2: Generate Objectives
       setCreationProgress(prev => prev ? {
         ...prev,
-        steps: prev.steps.map((step, idx) => idx === 1 ? { ...step, status: 'loading' } : step)
-      } : null);
-      
-      await missionAPI.generateObjectives(mission.id, newMissionBrief);
-      setCreationProgress(prev => prev ? {
-        ...prev,
-        steps: prev.steps.map((step, idx) => idx === 1 ? { ...step, status: 'completed' } : step),
-        currentStep: 2
-      } : null);
-
-      // Step 3: Generate Requirements
-      setCreationProgress(prev => prev ? {
-        ...prev,
-        steps: prev.steps.map((step, idx) => idx === 2 ? { ...step, status: 'loading' } : step)
-      } : null);
-      
-      const objectivesRes = await missionAPI.getTabData(mission.id, 0);
-      await missionAPI.generateRequirements(mission.id, objectivesRes.objectives || []);
-      setCreationProgress(prev => prev ? {
-        ...prev,
-        steps: prev.steps.map((step, idx) => idx === 2 ? { ...step, status: 'completed' } : step),
-        currentStep: 3
-      } : null);
-
-      // Step 4: Generate Constraints
-      setCreationProgress(prev => prev ? {
-        ...prev,
-        steps: prev.steps.map((step, idx) => idx === 3 ? { ...step, status: 'loading' } : step)
-      } : null);
-      
-      const requirementsRes = await missionAPI.getTabData(mission.id, 1);
-      await missionAPI.generateConstraints(mission.id, objectivesRes.objectives || [], requirementsRes.requirements || []);
-      setCreationProgress(prev => prev ? {
-        ...prev,
-        steps: prev.steps.map((step, idx) => idx === 3 ? { ...step, status: 'completed' } : step),
-        currentStep: 4
-      } : null);
-
-      // Step 5: Generate Design Solutions
-      setCreationProgress(prev => prev ? {
-        ...prev,
-        steps: prev.steps.map((step, idx) => idx === 4 ? { ...step, status: 'loading' } : step)
-      } : null);
-      
-      const constraintsRes = await missionAPI.getTabData(mission.id, 2);
-      await missionAPI.generateDesignSolutions(mission.id, objectivesRes.objectives || [], requirementsRes.requirements || [], constraintsRes.constraints || []);
-      setCreationProgress(prev => prev ? {
-        ...prev,
-        steps: prev.steps.map((step, idx) => idx === 4 ? { ...step, status: 'completed' } : step),
-        currentStep: 4,
+        steps: prev.steps.map((step, idx) => idx === 0 ? { ...step, status: 'completed' } : step),
+        currentStep: 0,
         isComplete: true
       } : null);
 
