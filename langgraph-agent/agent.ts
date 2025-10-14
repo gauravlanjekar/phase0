@@ -190,13 +190,21 @@ function getProgressMessage(toolName: string): string {
 
 // Agent Core invocations endpoint
 app.post('/invocations', async (req: Request, res: Response) => {
+  console.log('📥 Invocation request received:', req.body);
+  const toolName = req.body.toolName;
+  if (toolName) {
+    res.json({
+      status: 'running',
+      message: getProgressMessage(toolName)
+    });
+  }
   try {
     const hasInputFormat = 'input' in req.body && req.body.input?.prompt;
     const message = hasInputFormat ? req.body.input.prompt : req.body.inputText;
     const sessionId = req.body.sessionId;
     
     if (!sessionId) {
-      return res.status(400).json({ error: 'sessionId is required' });
+      return res.status(500).json({ error: 'sessionId is required' });
     }
     
     const conversationHistory = await memoryManager.getConversation(sessionId);
@@ -244,7 +252,8 @@ app.post('/invocations', async (req: Request, res: Response) => {
     
     res.end();
   } catch (error) {
-    console.error('Chat failed:', (error as Error).message);
+    console.error('❌ Chat failed:', (error as Error).message);
+    console.error('❌ Full error:', error);
     res.status(500).json({ error: (error as Error).message });
   }
 });

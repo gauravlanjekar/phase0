@@ -20,7 +20,12 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string>('');
-  const [threadId, setThreadId] = useState<string>(`mission_${missionId}`);
+  const [streamingResponse, setStreamingResponse] = useState<string>('');
+  const [threadId, setThreadId] = useState<string>(() => {
+    // Generate random 33-character threadId
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    return Array.from({length: 33}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  });
   const viewport = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -32,9 +37,6 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
   }, [messages]);
 
   useEffect(() => {
-    // Update threadId when missionId changes
-    const newThreadId = `mission_${missionId}`;
-    setThreadId(newThreadId);
     // Load conversation history for this mission
     loadHistory(missionId);
   }, [missionId, loadHistory]);
@@ -69,11 +71,15 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
     onMessageSent?.();
 
     try {
+      setStreamingResponse('');
       const response = await missionAPI.sendChatMessage(
         missionId, 
         inputMessage, 
         threadId,
-        (progress) => setProgressMessage(progress)
+        (progress) => {
+          setProgressMessage('Generating response...');
+          setStreamingResponse(progress);
+        }
       );
       
       // Always update threadId from response to maintain conversation
@@ -103,6 +109,8 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
         };
         addMessage(missionId, agentMessage);
       }
+      
+      setStreamingResponse('');
       
       // Trigger data refresh after agent response
       window.dispatchEvent(new CustomEvent('agentResponseReceived', { 
@@ -234,15 +242,38 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
                   background: 'rgba(255, 255, 255, 0.9)',
                   backdropFilter: 'blur(10px)',
                   border: '1px solid rgba(255, 255, 255, 0.3)',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)'
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                  maxWidth: '85%'
                 }}
               >
-                <Group gap="xs">
-                  <Loader size="sm" color="blue" />
-                  <Text size="sm" c="dimmed">
-                    {progressMessage || 'Analyzing your request...'}
-                  </Text>
-                </Group>
+                {streamingResponse ? (
+                  <Box style={{ 
+                    '& h1, & h2, & h3': { marginTop: '0.5rem', marginBottom: '0.5rem' },
+                    '& p': { marginBottom: '0.5rem' },
+                    '& ul, & ol': { marginLeft: '1rem', marginBottom: '0.5rem' },
+                    '& code': { 
+                      background: 'rgba(0,0,0,0.1)',
+                      padding: '2px 4px',
+                      borderRadius: '4px',
+                      fontSize: '0.85em'
+                    }
+                  }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {streamingResponse}
+                    </ReactMarkdown>
+                    <Group gap="xs" mt="xs">
+                      <Loader size="xs" color="blue" />
+                      <Text size="xs" c="dimmed">Generating...</Text>
+                    </Group>
+                  </Box>
+                ) : (
+                  <Group gap="xs">
+                    <Loader size="sm" color="blue" />
+                    <Text size="sm" c="dimmed">
+                      {progressMessage || 'Analyzing your request...'}
+                    </Text>
+                  </Group>
+                )}
               </Paper>
             </Group>
           )}
