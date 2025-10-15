@@ -65,6 +65,7 @@ npm start
 - **AWS Cognito Authentication** - Secure user authentication with JWT tokens
 - Mission CRUD operations (user-scoped)
 - Mission workspace with chat
-- 9 structured mission tabs
+- 10 structured mission tabs including 3D visualization
+- **3D Mission Visualization** - Interactive Cesium-powered Earth view with satellite orbits and ground stations
 - Modern glassmorphism UI
 - Serverless AWS deployment

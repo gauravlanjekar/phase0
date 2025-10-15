@@ -817,6 +817,75 @@ export const searchInternetTool = tool(
 
 
 
+// Ground Track Calculation Tool
+export const calculateGroundTrackTool = tool(
+  async ({ altitude, inclination, eccentricity, raan, argumentOfPerigee, trueAnomaly, numPoints, numOrbits }: {
+    altitude: number;
+    inclination: number;
+    eccentricity?: number;
+    raan?: number;
+    argumentOfPerigee?: number;
+    trueAnomaly?: number;
+    numPoints?: number;
+    numOrbits?: number;
+  }) => {
+    // Import ground track calculation from local file
+    const { calculateGroundTrack } = await import('./ground-track');
+    
+    const trackPoints = calculateGroundTrack(
+      altitude,
+      inclination,
+      eccentricity || 0,
+      raan || 0,
+      argumentOfPerigee || 0,
+      trueAnomaly || 0,
+      numPoints || 100,
+      numOrbits || 1
+    );
+    
+    // Format for agent consumption
+    const formattedTrack = trackPoints.map(point => ({
+      latitude: parseFloat(point.latitude.toFixed(4)),
+      longitude: parseFloat(point.longitude.toFixed(4)),
+      time: parseFloat(point.time.toFixed(2))
+    }));
+    
+    const summary = {
+      totalPoints: formattedTrack.length,
+      latitudeRange: {
+        min: Math.min(...formattedTrack.map(p => p.latitude)),
+        max: Math.max(...formattedTrack.map(p => p.latitude))
+      },
+      longitudeRange: {
+        min: Math.min(...formattedTrack.map(p => p.longitude)),
+        max: Math.max(...formattedTrack.map(p => p.longitude))
+      },
+      orbitalPeriod: trackPoints.length > 0 ? trackPoints[trackPoints.length - 1].time / (numOrbits || 1) : 0
+    };
+    
+    return {
+      success: true,
+      groundTrack: formattedTrack,
+      summary,
+      description: `Ground track calculated for ${numOrbits} orbit(s) at ${altitude}km altitude, ${inclination}° inclination`
+    };
+  },
+  {
+    name: 'calculate_ground_track',
+    description: 'Calculate satellite ground track coordinates for visualization and coverage analysis',
+    schema: z.object({
+      altitude: z.number().describe('Orbital altitude in km'),
+      inclination: z.number().describe('Orbital inclination in degrees'),
+      eccentricity: z.number().optional().describe('Orbital eccentricity (default: 0)'),
+      raan: z.number().optional().describe('Right Ascension of Ascending Node in degrees (default: 0)'),
+      argumentOfPerigee: z.number().optional().describe('Argument of perigee in degrees (default: 0)'),
+      trueAnomaly: z.number().optional().describe('True anomaly in degrees (default: 0)'),
+      numPoints: z.number().optional().describe('Number of points per orbit (default: 100)'),
+      numOrbits: z.number().optional().describe('Number of orbits to calculate (default: 1)')
+    })
+  }
+);
+
 // Flight Dynamics Tool
 export const flightDynamicsTool = tool(
   async ({ altitude, inclination, eccentricity, swathWidth, dataRate, numSpacecraft, groundStations }: {
@@ -937,5 +1006,6 @@ export const allTools = [
   updateOrbitTool,
   searchInternetTool,
   flightDynamicsTool,
+  calculateGroundTrackTool,
   saveValidationReportsTool
 ];
