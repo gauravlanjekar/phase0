@@ -5,23 +5,22 @@ import { IconPlus, IconTrash, IconRocket, IconLogout, IconSatellite, IconCalenda
 import { Mission, TimelineStep, MissionCreationProgress } from '../types/models';
 import { missionAPI } from '../services/api';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useAuth } from '../contexts/AuthContext';
 
 const Dashboard: React.FC = () => {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [newMissionBrief, setNewMissionBrief] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [creationProgress, setCreationProgress] = useState<MissionCreationProgress | null>(null);
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const { transcript, isListening, startListening, stopListening, resetTranscript, isSupported } = useSpeechRecognition();
 
   useEffect(() => {
-    if (!localStorage.getItem('isAuthenticated')) {
-      navigate('/login');
-      return;
-    }
     loadMissions();
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     if (transcript) {
@@ -33,8 +32,10 @@ const Dashboard: React.FC = () => {
     try {
       const data = await missionAPI.getMissions();
       setMissions(data);
+      setError('');
     } catch (error) {
       console.error('Failed to load missions:', error);
+      setError(`Failed to load missions: ${error}`);
     } finally {
       setLoading(false);
     }
@@ -113,8 +114,8 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('isAuthenticated');
+  const handleLogout = () => {
+    signOut();
     navigate('/login');
   };
 
@@ -123,6 +124,19 @@ const Dashboard: React.FC = () => {
       <div className="content-wrapper">
         <Container size="xl" style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Text size="xl" c="white">Loading missions...</Text>
+        </Container>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="content-wrapper">
+        <Container size="xl" py="xl">
+          <Alert color="red" mb="xl">
+            {error}
+          </Alert>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
         </Container>
       </div>
     );
@@ -138,15 +152,18 @@ const Dashboard: React.FC = () => {
             </Title>
             <Text c="dimmed" size="lg">Manage your space exploration missions</Text>
           </Box>
-          <Button 
-            leftSection={<IconLogout size={16} />} 
-            variant="light" 
-            color="red" 
-            onClick={logout}
-            size="md"
-          >
-            Logout
-          </Button>
+          <Group>
+            <Text c="dimmed" size="sm">Welcome, {user?.username}</Text>
+            <Button 
+              leftSection={<IconLogout size={16} />} 
+              variant="light" 
+              color="red" 
+              onClick={handleLogout}
+              size="md"
+            >
+              Logout
+            </Button>
+          </Group>
         </Group>
 
         <Paper className="glass-card" p="xl" radius="xl" mb="xl">

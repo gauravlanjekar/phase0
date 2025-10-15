@@ -1,7 +1,17 @@
 import { Mission, Objective, Requirement, Constraint, DesignSolution } from '../types/models';
+import { authService } from './auth';
 
 const API_BASE = process.env.REACT_APP_API_BASE || 'https://api.phase0.gauravlanjekar.in';
 const LANGGRAPH_BASE = process.env.REACT_APP_LANGGRAPH_BASE || 'http://localhost:8080';
+
+// Helper function to get authenticated headers
+const getAuthHeaders = async (): Promise<HeadersInit> => {
+  const token = await authService.getAccessToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token && { 'Authorization': `Bearer ${token}` })
+  };
+};
 
 
 
@@ -24,15 +34,17 @@ interface GenerationResponse<T> {
 export const missionAPI = {
   // Get all missions
   getMissions: async (): Promise<Mission[]> => {
-    const response = await fetch(`${API_BASE}/missions`);
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE}/missions`, { headers });
     return response.json();
   },
 
   // Create new mission
   createMission: async (brief: string): Promise<Mission> => {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/missions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ brief })
     });
     return response.json();
@@ -40,9 +52,10 @@ export const missionAPI = {
 
   // Update mission name
   updateMissionName: async (id: string, name: string): Promise<Mission> => {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/missions/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ name })
     });
     return response.json();
@@ -50,22 +63,26 @@ export const missionAPI = {
 
   // Delete mission
   deleteMission: async (id: string): Promise<void> => {
+    const headers = await getAuthHeaders();
     await fetch(`${API_BASE}/missions/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers
     });
   },
 
   // Get tab data
   getTabData: async (missionId: string, tabIndex: number): Promise<any> => {
-    const response = await fetch(`${API_BASE}/missions/${missionId}/tabs/${tabIndex}`);
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE}/missions/${missionId}/tabs/${tabIndex}`, { headers });
     return response.json();
   },
 
   // Save tab data
   saveTabData: async (missionId: string, tabIndex: number, data: any): Promise<any> => {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/missions/${missionId}/tabs/${tabIndex}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(data)
     });
     return response.json();
@@ -80,9 +97,10 @@ export const missionAPI = {
       // Local development - call agent directly
       try {
         const sessionId = threadId || `mission_${missionId}`;
+        const headers = await getAuthHeaders();
         const response = await fetch(`${LANGGRAPH_BASE}/invocations`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ 
             sessionId,
             input: { prompt: `Working with Mission ID: ${missionId}. Use this ID when calling tools that require missionId parameter.\n\n${message}` }
@@ -133,9 +151,10 @@ export const missionAPI = {
     }
     
     // Production - use streaming endpoint
+    const headers = await getAuthHeaders();
     const response = await fetch(`${API_BASE}/missions/${missionId}/chat/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ message, threadId })
     });
     
@@ -184,7 +203,7 @@ export const missionAPI = {
     // Fallback to non-streaming
     const fallbackResponse = await fetch(`${API_BASE}/missions/${missionId}/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ message, threadId })
     });
     return fallbackResponse.json();
@@ -293,7 +312,8 @@ This creates a complete early-phase mission analysis baseline with validation re
   // Get validation reports
   getValidationReports: async (missionId: string, solutionId: string): Promise<any[]> => {
     try {
-      const response = await fetch(`${API_BASE}/missions/${missionId}/tabs/4`);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE}/missions/${missionId}/tabs/4`, { headers });
       const data = await response.json();
       return data[`validation_${solutionId}`] || [];
     } catch (error) {
@@ -304,9 +324,10 @@ This creates a complete early-phase mission analysis baseline with validation re
 
   // Send Agent Core format message
   sendAgentCoreMessage: async (sessionId: string, inputText: string, sessionState?: any): Promise<{ completion: string; sessionId: string }> => {
+    const headers = await getAuthHeaders();
     const response = await fetch(`${LANGGRAPH_BASE}/invocations`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ sessionId, input: { prompt: inputText }, sessionState })
     });
     

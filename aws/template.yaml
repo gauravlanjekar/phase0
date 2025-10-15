@@ -30,6 +30,75 @@ Conditions:
   HasHostedZone: !Not [!Equals [!Ref HostedZoneId, ""]]
 
 Resources:
+  # Cognito User Pool
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub mission-admin-${Environment}
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Sub mission-admin-client-${Environment}
+      GenerateSecret: false
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !If 
+          - HasHostedZone
+          - !Sub "https://${UIDomainName}"
+          - "http://localhost:3000"
+      LogoutURLs:
+        - !If 
+          - HasHostedZone
+          - !Sub "https://${UIDomainName}/login"
+          - "http://localhost:3000/login"
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+
+
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref UserPool
+      Domain: !Sub mission-admin-${Environment}-${AWS::AccountId}
+
+  # API Key for Agent Access
+  AgentApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: !Sub mission-admin-agent-key-${Environment}
+      Description: API Key for agent tool access
+      Enabled: true
+      Value: !Sub "agent-${AWS::AccountId}-${Environment}-key-2024"
+
   # DynamoDB Tables
   MissionsTable:
     Type: AWS::DynamoDB::Table
@@ -72,6 +141,8 @@ Resources:
           MISSIONS_TABLE: !Ref MissionsTable
           MISSION_DATA_TABLE: !Ref MissionDataTable
           AGENT_RUNTIME_ARN: !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/phase0_agent-kpLtDhGVlC"
+          USER_POOL_ID: !Ref UserPool
+          AGENT_API_KEY: !Ref AgentApiKey
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref MissionsTable
@@ -84,6 +155,11 @@ Resources:
               Resource: 
                 - !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/phase0_agent-kpLtDhGVlC"
                 - !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/phase0_agent-kpLtDhGVlC/*"
+            - Effect: Allow
+              Action:
+                - cognito-idp:GetUser
+                - cognito-idp:AdminGetUser
+              Resource: !GetAtt UserPool.Arn
 
 
 
@@ -210,6 +286,10 @@ Resources:
       Certificates:
         - CertificateArn: "arn:aws:acm:eu-central-1:886732474028:certificate/e686e7ed-2cc3-486c-8d75-d43c2c1b4b1d"
 
+
+
+
+
   # Lambda Permission for ALB
   MissionFunctionALBPermission:
     Type: AWS::Lambda::Permission
@@ -334,3 +414,28 @@ Outputs:
       - !Sub "https://${UIDistribution.DomainName}"
     Export:
       Name: !Sub "${AWS::StackName}-UIUrl"
+  
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolId"
+  
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub "${AWS::StackName}-UserPoolClientId"
+  
+  CognitoDomain:
+    Description: Cognito Hosted UI Domain
+    Value: !Sub "${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-CognitoDomain"
+  
+  AgentApiKey:
+    Description: API Key for Agent Access
+    Value: !Ref AgentApiKey
+    Export:
+      Name: !Sub "${AWS::StackName}-AgentApiKey"
+  

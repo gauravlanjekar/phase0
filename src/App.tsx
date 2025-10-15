@@ -5,25 +5,37 @@ import { Notifications } from '@mantine/notifications';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import MissionWorkspace from './components/MissionWorkspace';
+import ProtectedRoute from './components/ProtectedRoute';
 import { ChatProvider } from './components/ChatContext';
+import { AuthProvider } from './contexts/AuthContext';
 import './App.css';
 
 function App() {
   return (
     <MantineProvider>
       <Notifications />
-      <ChatProvider>
-        <Router>
-          <div className="App">
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/mission/:id" element={<MissionWorkspace />} />
-              <Route path="/" element={<Navigate to="/login" replace />} />
-            </Routes>
-          </div>
-        </Router>
-      </ChatProvider>
+      <AuthProvider>
+        <ChatProvider>
+          <Router>
+            <div className="App">
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/dashboard" element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } />
+                <Route path="/mission/:id" element={
+                  <ProtectedRoute>
+                    <MissionWorkspace />
+                  </ProtectedRoute>
+                } />
+                <Route path="/" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </div>
+          </Router>
+        </ChatProvider>
+      </AuthProvider>
     </MantineProvider>
   );
 }

@@ -25,10 +25,6 @@ const MissionWorkspace: React.FC = () => {
   const [chatMessage, setChatMessage] = useState<string>('');
 
   useEffect(() => {
-    if (!localStorage.getItem('isAuthenticated')) {
-      navigate('/login');
-      return;
-    }
     if (!id) return;
     loadTabData();
 

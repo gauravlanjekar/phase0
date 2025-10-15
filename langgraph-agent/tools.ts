@@ -51,7 +51,19 @@ const log = {
 };
 
 // API configuration
-const API_BASE = process.env.API_BASE || 'https://paf4sflt0a.execute-api.eu-central-1.amazonaws.com/dev';
+const API_BASE = process.env.API_BASE ;
+const API_KEY = process.env.API_KEY;
+
+// API headers configuration
+const getApiHeaders = () => {
+  const headers: any = {
+    'Content-Type': 'application/json'
+  };
+  if (API_KEY) {
+    headers['X-API-Key'] = API_KEY;
+  }
+  return headers;
+};
 
 // Core functions
 const coreFunctions = {
@@ -59,14 +71,14 @@ const coreFunctions = {
     log.debug('📡 Fetching mission data', { missionId, apiBase: API_BASE });
     
     try {
-      const missionResponse = await axios.get(`${API_BASE}/missions/${missionId}`);
+      const missionResponse = await axios.get(`${API_BASE}/missions/${missionId}`, { headers: getApiHeaders() });
       log.debug('✅ Mission basic data retrieved', { status: missionResponse.status });
       
       const [objectivesRes, requirementsRes, constraintsRes, solutionsRes] = await Promise.all([
-        axios.get(`${API_BASE}/missions/${missionId}/tabs/0`).catch(e => ({ data: null, error: e.message })),
-        axios.get(`${API_BASE}/missions/${missionId}/tabs/1`).catch(e => ({ data: null, error: e.message })),
-        axios.get(`${API_BASE}/missions/${missionId}/tabs/2`).catch(e => ({ data: null, error: e.message })),
-        axios.get(`${API_BASE}/missions/${missionId}/tabs/3`).catch(e => ({ data: null, error: e.message }))
+        axios.get(`${API_BASE}/missions/${missionId}/tabs/0`, { headers: getApiHeaders() }).catch(e => ({ data: null, error: e.message })),
+        axios.get(`${API_BASE}/missions/${missionId}/tabs/1`, { headers: getApiHeaders() }).catch(e => ({ data: null, error: e.message })),
+        axios.get(`${API_BASE}/missions/${missionId}/tabs/2`, { headers: getApiHeaders() }).catch(e => ({ data: null, error: e.message })),
+        axios.get(`${API_BASE}/missions/${missionId}/tabs/3`, { headers: getApiHeaders() }).catch(e => ({ data: null, error: e.message }))
       ]);
       
       return {
@@ -89,7 +101,7 @@ const coreFunctions = {
 
   async getData(missionId: string, tabIndex: number): Promise<any> {
     try {
-      const response = await axios.get(`${API_BASE}/missions/${missionId}/tabs/${tabIndex}`);
+      const response = await axios.get(`${API_BASE}/missions/${missionId}/tabs/${tabIndex}`, { headers: getApiHeaders() });
       return response.data;
     } catch (error) {
       return null;
@@ -97,7 +109,7 @@ const coreFunctions = {
   },
 
   async saveData(missionId: string, tabIndex: number, data: any): Promise<void> {
-    await axios.put(`${API_BASE}/missions/${missionId}/tabs/${tabIndex}`, data);
+    await axios.put(`${API_BASE}/missions/${missionId}/tabs/${tabIndex}`, data, { headers: getApiHeaders() });
   }
 };
 
@@ -247,7 +259,7 @@ export const saveMissionBriefAndName = tool(
       if (brief) updateData.brief = brief;
       if (name) updateData.name = name;
       
-      await axios.put(`${API_BASE}/missions/${missionId}`, updateData);
+      await axios.put(`${API_BASE}/missions/${missionId}`, updateData, { headers: getApiHeaders() });
       return `Updated mission ${missionId} with ${Object.keys(updateData).join(' and ')}.`;
     } catch (error) {
       log.error('Failed to update mission', { missionId, error: (error as any).message });
@@ -268,7 +280,7 @@ export const saveMissionBriefAndName = tool(
 export const getMissionBriefAndName = tool(
   async ({ missionId }: { missionId: string }) => {
     try {
-      const response = await axios.get(`${API_BASE}/missions/${missionId}`);
+      const response = await axios.get(`${API_BASE}/missions/${missionId}`, { headers: getApiHeaders() });
       const mission = response.data;
       return `Mission Brief: ${mission.brief}\nMission Name: ${mission.name}`;
     } catch (error) {
