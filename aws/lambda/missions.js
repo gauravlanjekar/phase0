@@ -156,17 +156,9 @@ async function getTabData(missionId, tabIndex) {
     
     let data = result.Item || { notes: '', status: 'Not Started' };
     
-    // Initialize requirements for tab 1 (Mission Requirements)
-    if (tabIndex === '1' && !data.requirements) {
-      data.requirements = createDefaultRequirements();
-    }
-    
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (error) {
     const defaultData = { notes: '', status: 'Not Started' };
-    if (tabIndex === '1') {
-      defaultData.requirements = createDefaultRequirements();
-    }
     return { statusCode: 200, headers, body: JSON.stringify(defaultData) };
   }
 }
