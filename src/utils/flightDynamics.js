@@ -1,10 +1,66 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.calculateFlightDynamics = void 0;
+exports.calculateFlightDynamics = exports.calculateCurrentSatellitePosition = exports.calculateGroundTrack = void 0;
 // Constants
 const EARTH_RADIUS = 6371; // km
 const EARTH_MU = 398600.4418; // km³/s²
 const EARTH_J2 = 1.08262668e-3;
+const EARTH_ROTATION_RATE = 7.2921159e-5; // rad/s
+const calculateGroundTrack = (altitude, // km
+inclination, // degrees
+eccentricity = 0, raan = 0, // Right Ascension of Ascending Node, degrees
+argumentOfPerigee = 0, // degrees
+trueAnomaly = 0, // degrees
+numPoints = 100, numOrbits = 1) => {
+    const points = [];
+    const semiMajorAxis = EARTH_RADIUS + altitude;
+    const orbitalPeriod = 2 * Math.PI * Math.sqrt(Math.pow(semiMajorAxis, 3) / EARTH_MU); // seconds
+    const incRad = inclination * Math.PI / 180;
+    const raanRad = raan * Math.PI / 180;
+    const argPerigeeRad = argumentOfPerigee * Math.PI / 180;
+    for (let i = 0; i < numPoints * numOrbits; i++) {
+        const meanAnomaly = (i / numPoints) * 2 * Math.PI;
+        const time = (i / numPoints) * orbitalPeriod;
+        // Simplified orbital mechanics - circular orbit approximation
+        const trueAnomalyRad = meanAnomaly; // For circular orbits
+        // Calculate position in orbital plane
+        const r = semiMajorAxis; // Circular orbit
+        const u = argPerigeeRad + trueAnomalyRad; // Argument of latitude
+        // Position in orbital coordinate system
+        const xOrb = r * Math.cos(u);
+        const yOrb = r * Math.sin(u);
+        const zOrb = 0;
+        // Transform to Earth-centered inertial coordinates
+        const cosRaan = Math.cos(raanRad);
+        const sinRaan = Math.sin(raanRad);
+        const cosInc = Math.cos(incRad);
+        const sinInc = Math.sin(incRad);
+        const xEci = cosRaan * xOrb - sinRaan * cosInc * yOrb;
+        const yEci = sinRaan * xOrb + cosRaan * cosInc * yOrb;
+        const zEci = sinInc * yOrb;
+        // Account for Earth rotation
+        const earthRotation = EARTH_ROTATION_RATE * time;
+        const xEcef = Math.cos(earthRotation) * xEci + Math.sin(earthRotation) * yEci;
+        const yEcef = -Math.sin(earthRotation) * xEci + Math.cos(earthRotation) * yEci;
+        const zEcef = zEci;
+        // Convert to latitude/longitude
+        const latitude = Math.asin(zEcef / r) * 180 / Math.PI;
+        let longitude = Math.atan2(yEcef, xEcef) * 180 / Math.PI;
+        // Normalize longitude to [-180, 180]
+        while (longitude > 180)
+            longitude -= 360;
+        while (longitude < -180)
+            longitude += 360;
+        points.push({ latitude, longitude, time });
+    }
+    return points;
+};
+exports.calculateGroundTrack = calculateGroundTrack;
+const calculateCurrentSatellitePosition = (altitude, inclination, eccentricity = 0, epochTime = new Date()) => {
+    const track = (0, exports.calculateGroundTrack)(altitude, inclination, eccentricity, 0, 0, 0, 1, 1);
+    return track[0] || { latitude: 0, longitude: 0 };
+};
+exports.calculateCurrentSatellitePosition = calculateCurrentSatellitePosition;
 const calculateFlightDynamics = (solution) => {
     if (!solution.orbit)
         return null;
@@ -63,4 +119,3 @@ const calculateFlightDynamics = (solution) => {
     };
 };
 exports.calculateFlightDynamics = calculateFlightDynamics;
-//# sourceMappingURL=flightDynamics.js.map

@@ -4,8 +4,9 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createPowerComponent = exports.createPayloadComponent = exports.createConstraint = exports.createRequirement = exports.createObjective = exports.createMission = void 0;
 // Factory Functions
-const createMission = (id, brief) => ({
+const createMission = (id, name, brief) => ({
     id,
+    name,
     brief,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -62,4 +63,3 @@ const createPowerComponent = (id, name, mass, powerGenerated, cost) => ({
     reliability: 0.9
 });
 exports.createPowerComponent = createPowerComponent;
-//# sourceMappingURL=models.js.map

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Paper, Tabs, Button, Group, Title, Drawer, Box, Badge, ActionIcon, Text } from '@mantine/core';
-import { IconArrowLeft, IconMessageCircle, IconTarget, IconClipboardList, IconShield, IconSatellite, IconRocket } from '@tabler/icons-react';
+import { IconArrowLeft, IconMessageCircle, IconTarget, IconClipboardList, IconShield, IconSatellite, IconRocket, IconGlobe } from '@tabler/icons-react';
 import { Objective, Requirement, Constraint, DesignSolution, Mission } from '../types/models';
 import { missionAPI } from '../services/api';
 import ObjectivesTab from './ObjectivesTab';
 import RequirementsTab from './RequirementsTab';
 import ConstraintsTab from './ConstraintsTab';
 import DesignSolutionsTab from './DesignSolutionsTab';
+import VisualizationTab from './VisualizationTab';
 import ChatDrawer from './ChatDrawer';
 import MissionHeader from './MissionHeader';
 
@@ -187,6 +188,13 @@ const MissionWorkspace: React.FC = () => {
               >
                 Solutions ({(solutions || []).length})
               </Tabs.Tab>
+              <Tabs.Tab 
+                value="visualization" 
+                leftSection={<IconGlobe size={16} />}
+                style={{ color: 'white' }}
+              >
+                Visualization
+              </Tabs.Tab>
             </Tabs.List>
 
             <Tabs.Panel value="objectives" p="xl">
@@ -229,6 +237,13 @@ const MissionWorkspace: React.FC = () => {
                 constraints={constraints}
                 onSolutionsChange={handleSolutionsChange}
                 onRefresh={loadTabData}
+              />
+            </Tabs.Panel>
+
+            <Tabs.Panel value="visualization" p="xl">
+              <VisualizationTab
+                missionId={id!}
+                solutions={solutions}
               />
             </Tabs.Panel>
           </Tabs>
