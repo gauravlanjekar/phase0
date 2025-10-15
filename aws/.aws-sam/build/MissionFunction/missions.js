@@ -9,6 +9,7 @@ const agentCoreClient = new BedrockAgentCoreClient({ region: process.env.AWS_REG
 const MISSIONS_TABLE = process.env.MISSIONS_TABLE;
 const MISSION_DATA_TABLE = process.env.MISSION_DATA_TABLE;
 const AGENT_RUNTIME_ARN = process.env.AGENT_RUNTIME_ARN;
+const AGENT_API_KEY = process.env.AGENT_API_KEY;
 
 const headers = {
   'Content-Type': 'application/json',
@@ -18,7 +19,7 @@ const headers = {
 };
 
 exports.handler = async (event) => {
-  const { httpMethod, body, path } = event;
+  const { httpMethod, body, path, headers: requestHeaders } = event;
   
   // Extract path parameters from ALB path
   const pathParams = {};
@@ -54,6 +55,8 @@ exports.handler = async (event) => {
     routePattern = '/missions/{id}/chat';
   }
   
+
+  
   // Handle OPTIONS preflight requests
   if (httpMethod === 'OPTIONS') {
     return {
@@ -64,6 +67,38 @@ exports.handler = async (event) => {
         'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'
       },
       body: ''
+    };
+  }
+
+  // Authentication/Authorization - check headers to determine auth method
+  const apiKey = requestHeaders['x-api-key'] || requestHeaders['X-API-Key'];
+  const authHeader = requestHeaders['Authorization'] || requestHeaders['authorization'];
+  
+  if (apiKey) {
+    // Agent access with API key
+    if (apiKey !== AGENT_API_KEY) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid API key' })
+      };
+    }
+  } else if (authHeader) {
+    // UI access with JWT token - add JWT validation here if needed
+    // For now, just check if token exists
+    if (!authHeader.startsWith('Bearer ')) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid authorization header' })
+      };
+    }
+  } else {
+    // No authentication provided
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'Authentication required' })
     };
   }
 
@@ -92,6 +127,8 @@ exports.handler = async (event) => {
       case '/missions/{id}/chat/stream':
         if (httpMethod === 'POST') return await chatWithAgent(pathParams.id, JSON.parse(body), true);
         break;
+      
+
 
     }
     
@@ -156,17 +193,9 @@ async function getTabData(missionId, tabIndex) {
     
     let data = result.Item || { notes: '', status: 'Not Started' };
     
-    // Initialize requirements for tab 1 (Mission Requirements)
-    if (tabIndex === '1' && !data.requirements) {
-      data.requirements = createDefaultRequirements();
-    }
-    
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (error) {
     const defaultData = { notes: '', status: 'Not Started' };
-    if (tabIndex === '1') {
-      defaultData.requirements = createDefaultRequirements();
-    }
     return { statusCode: 200, headers, body: JSON.stringify(defaultData) };
   }
 }
@@ -306,3 +335,4 @@ function createDefaultRequirements() {
   });
   return requirements;
 }
+

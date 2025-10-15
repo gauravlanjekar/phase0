@@ -15,10 +15,11 @@ A modern React application with serverless REST API for mission management.
 ./deploy.sh
 ```
 
-**Update frontend API URL:**
+**Create your first user:**
 ```bash
-# Copy the API URL from deploy output and update src/services/api.js
-const API_BASE = 'https://your-api-id.execute-api.us-east-1.amazonaws.com/dev';
+# The deploy script will output commands like these:
+aws cognito-idp admin-create-user --user-pool-id YOUR_POOL_ID --username admin --temporary-password TempPass123! --message-action SUPPRESS
+aws cognito-idp admin-set-user-password --user-pool-id YOUR_POOL_ID --username admin --password YourPassword123! --permanent
 ```
 
 **Cleanup AWS resources:**
@@ -43,9 +44,11 @@ npm start
 
 ## AWS Architecture
 
-- **API Gateway** - REST API endpoints
-- **Lambda Functions** - Serverless compute
-- **DynamoDB** - NoSQL database
+- **AWS Cognito** - User authentication and authorization
+- **Application Load Balancer** - API routing with custom domain
+- **Lambda Functions** - Serverless compute with JWT validation
+- **DynamoDB** - NoSQL database with user-scoped data
+- **S3 + CloudFront** - Static website hosting
 - **CloudFormation** - Infrastructure as Code
 
 ## API Endpoints
@@ -59,8 +62,8 @@ npm start
 
 ## Features
 
-- Authentication (mock)
-- Mission CRUD operations
+- **AWS Cognito Authentication** - Secure user authentication with JWT tokens
+- Mission CRUD operations (user-scoped)
 - Mission workspace with chat
 - 9 structured mission tabs
 - Modern glassmorphism UI
