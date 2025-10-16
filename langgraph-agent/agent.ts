@@ -229,6 +229,31 @@ app.post('/invocations', async (req: Request, res: Response) => {
       for (const nodeName of nodeNames) {
         if (chunk[nodeName]) {
           finalResult = chunk[nodeName];
+          
+          // Log what the agent is doing
+          if (nodeName === 'agent') {
+            const lastMessage = chunk[nodeName].messages[chunk[nodeName].messages.length - 1];
+            if (lastMessage.tool_calls && lastMessage.tool_calls.length > 0) {
+              for (const toolCall of lastMessage.tool_calls) {
+                console.log(`🔧 Agent calling tool: ${toolCall.name}`);
+                console.log(`📋 Tool args:`, JSON.stringify(toolCall.args, null, 2));
+                
+                // Send progress update to UI
+                const progressMsg = getProgressMessage(toolCall.name);
+                res.write(`data: ${JSON.stringify({
+                  progress: progressMsg,
+                  toolName: toolCall.name,
+                  toolArgs: toolCall.args
+                })}\n\n`);
+              }
+            }
+          } else if (nodeName === 'tools') {
+            console.log(`✅ Tool execution completed`);
+            res.write(`data: ${JSON.stringify({
+              progress: '⚙️ Processing results...',
+              status: 'tool_completed'
+            })}\n\n`);
+          }
         }
       }
     }

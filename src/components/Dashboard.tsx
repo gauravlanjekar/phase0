@@ -148,9 +148,9 @@ const Dashboard: React.FC = () => {
         <Group justify="space-between" mb="xl">
           <Box>
             <Title order={1} c="white" size="2.5rem" mb="xs">
-              Mission Control Center
+              Phase0
             </Title>
-            <Text c="dimmed" size="lg">Manage your space exploration missions</Text>
+            <Text c="dimmed" size="lg">AI-powered satellite mission planning</Text>
           </Box>
           <Group>
             <Text c="dimmed" size="sm">Welcome, {user?.username}</Text>

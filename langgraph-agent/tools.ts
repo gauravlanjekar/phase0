@@ -106,11 +106,12 @@ const getApiHeaders = () => {
 // Core functions
 const coreFunctions = {
   async getMissionData(missionId: string): Promise<MissionData> {
-    log.debug('📡 Fetching mission data', { missionId, apiBase: API_BASE });
+    
+
     
     try {
       const missionResponse = await axios.get(`${API_BASE}/missions/${missionId}`, { headers: getApiHeaders() });
-      log.debug('✅ Mission basic data retrieved', { status: missionResponse.status });
+
       
       const [objectivesRes, requirementsRes, constraintsRes, solutionsRes] = await Promise.all([
         axios.get(`${API_BASE}/missions/${missionId}/tabs/0`, { headers: getApiHeaders() }).catch(e => ({ data: null, error: e.message })),

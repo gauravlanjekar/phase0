@@ -4,7 +4,7 @@ import { IconGlobe, IconSatellite, IconRadar } from '@tabler/icons-react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L, { LatLngExpression } from 'leaflet';
 import { DesignSolution } from '../types/models';
-import { calculateGroundTrack, calculateCurrentSatellitePosition } from '../utils/flightDynamics';
+import { calculateGroundTrack, calculateCurrentSatellitePosition, calculateFlightDynamics } from '../utils/flightDynamics';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default markers
@@ -67,7 +67,7 @@ const VisualizationTab: React.FC<VisualizationTabProps> = ({ missionId, solution
         0,
         phaseOffset,
         120,
-        2
+        5
       );
       
       const trackSegments = splitTrackAtDateline(trackPoints);
@@ -175,6 +175,42 @@ const VisualizationTab: React.FC<VisualizationTabProps> = ({ missionId, solution
             ))}
           </MapContainer>
         </div>
+        
+        {/* Flight Dynamics KPIs */}
+        {(() => {
+          const flightDynamics = calculateFlightDynamics(solution);
+          return flightDynamics ? (
+            <Paper className="glass-card-dark" p="md" mt="md" radius="md">
+              <Title order={6} c="white" mb="md">Flight Dynamics Analysis</Title>
+              <Group justify="space-between">
+                <Stack gap="xs">
+                  <Text size="sm" c="dimmed">Orbital Mechanics</Text>
+                  <Text size="xs" c="white">Period: {flightDynamics.orbitalPeriod.toFixed(1)} min</Text>
+                  <Text size="xs" c="white">Velocity: {flightDynamics.orbitalVelocity.toFixed(2)} km/s</Text>
+                  <Text size="xs" c="white">Eclipse: {flightDynamics.eclipseDuration.toFixed(1)} min</Text>
+                  <Text size="xs" c="white">Sunlight: {flightDynamics.sunlightDuration.toFixed(1)} min</Text>
+                </Stack>
+                <Stack gap="xs">
+                  <Text size="sm" c="dimmed">Coverage Performance</Text>
+                  <Text size="xs" c="white">Revisit: {flightDynamics.revisitTime.toFixed(1)} hrs</Text>
+                  <Text size="xs" c="white">Max Latitude: ±{flightDynamics.maxLatitudeCoverage.toFixed(1)}°</Text>
+                  <Text size="xs" c="white">Swath: {flightDynamics.swathCoverage} km</Text>
+                  <Text size="xs" c="white">Repeat Cycle: {flightDynamics.groundTrackRepeatCycle.toFixed(1)} days</Text>
+                </Stack>
+                <Stack gap="xs">
+                  <Text size="sm" c="dimmed">Ground Operations</Text>
+                  <Text size="xs" c="white">GS Passes/Day: {flightDynamics.groundStationPasses}</Text>
+                  <Text size="xs" c="white">Downlink Time: {flightDynamics.dataDownlinkOpportunity.toFixed(1)} min/day</Text>
+                  <Text size="xs" c="white">{solution.spacecraft.length} Satellites</Text>
+                  <Text size="xs" c="white">{solution.groundStations.length} Ground Stations</Text>
+                  {solution.spacecraft.length > 1 && (
+                    <Text size="xs" c="cyan">Constellation Mode</Text>
+                  )}
+                </Stack>
+              </Group>
+            </Paper>
+          ) : null;
+        })()}
         
         {/* Mission Summary */}
         <Group mt="md" justify="space-between">

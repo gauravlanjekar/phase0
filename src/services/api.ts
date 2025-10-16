@@ -89,6 +89,8 @@ export const missionAPI = {
   },
 
   // Send chat message with streaming support
+  // Note: Due to ALB (Application Load Balancer) limitations, chunk streaming may not work properly in production
+  // The UI implements progress simulation as a workaround to provide user feedback
   sendChatMessage: async (missionId: string, message: string, threadId?: string, onProgress?: (message: string) => void): Promise<ChatResponse> => {
     // Check if running locally (development)
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -124,7 +126,10 @@ export const missionAPI = {
               if (line.startsWith('data: ')) {
                 try {
                   const data = JSON.parse(line.slice(6));
-                  if (data.completion) {
+                  if (data.progress) {
+                    // Show progress message
+                    onProgress?.(data.progress);
+                  } else if (data.completion) {
                     finalResponse = data.completion;
                     finalSessionId = data.sessionId;
                     onProgress?.(data.completion);
@@ -227,7 +232,7 @@ Use get_objectives_schema and save_objectives tools.`;
   // Generate requirements
   generateRequirements: async (missionId: string, objectives: Objective[]): Promise<GenerationResponse<Requirement>> => {
     try {
-      const prompt = `Generate 10-12 focused technical requirements for this Earth Observation mission.
+      const prompt = `Generate 5-7 focused technical requirements for this Earth Observation mission.
 For each requirement, include aiHelperText with plain text guidance on how to validate it against design solutions.
 Do NOT use mathematical formulas - use descriptive text like "Check if ground sample distance is better than 5m by examining payload component specifications".
 Use get_requirements_schema and save_requirements tools.`;
@@ -243,7 +248,7 @@ Use get_requirements_schema and save_requirements tools.`;
   // Generate constraints
   generateConstraints: async (missionId: string, objectives: Objective[] = [], requirements: Requirement[] = []): Promise<GenerationResponse<Constraint>> => {
     try {
-      const prompt = `Generate 6-8 mission constraints covering budget, schedule, technical, and regulatory limitations.
+      const prompt = `Generate 3-4 mission constraints covering budget, schedule, technical, and regulatory limitations.
 Focus on early mission analysis constraints that drive design decisions.
 Use get_constraints_schema and save_constraints tools.`;
       
@@ -258,7 +263,7 @@ Use get_constraints_schema and save_constraints tools.`;
   // Generate design solutions
   generateDesignSolutions: async (missionId: string, objectives: Objective[] = [], requirements: Requirement[] = [], constraints: Constraint[] = []): Promise<GenerationResponse<DesignSolution>> => {
     try {
-      const prompt = `Generate 1 complete spacecraft design solution with ALL 8 standard components (payload, power, avionics, adcs, communications, structure, thermal, propulsion), sun-synchronous orbit, and ground stations.
+      const prompt = `Generate 1 complete spacecraft design solution with ALL 8 standard components (payload, power, avionics, adcs, communications, structure, thermal, propulsion), sun-synchronous orbit, and ground stations. and tries to meet most of the provided requirements
 Use get_solutions_schema and save_solutions tools.
 
 After generating the solution, validate it against the mission requirements using save_validation_reports tool.`;

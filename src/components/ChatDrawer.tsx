@@ -21,6 +21,8 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
   const [isLoading, setIsLoading] = useState(false);
   const [progressMessage, setProgressMessage] = useState<string>('');
   const [streamingResponse, setStreamingResponse] = useState<string>('');
+  const [progressSteps, setProgressSteps] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState(0);
   const [threadId, setThreadId] = useState<string>(() => {
     // Generate random 33-character threadId
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -34,7 +36,7 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, streamingResponse]);
 
   useEffect(() => {
     // Load conversation history for this mission
@@ -54,6 +56,35 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
     }
   }, [initialMessage]);
 
+  // Simulate progress updates as workaround for ALB streaming limitations
+  const simulateProgress = (message: string) => {
+    const steps = [
+      'Analyzing your request...',
+      'Accessing mission data...',
+      'Processing with AI agent...',
+      'Generating response...',
+      'Finalizing output...'
+    ];
+    
+    setProgressSteps(steps);
+    setCurrentStep(0);
+    
+    // Update progress every 15 seconds
+    const interval = setInterval(() => {
+      setCurrentStep(prev => {
+        const next = prev + 1;
+        if (next >= steps.length) {
+          clearInterval(interval);
+          return prev;
+        }
+        setProgressMessage(steps[next]);
+        return next;
+      });
+    }, 15000);
+    
+    return interval;
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim() || isLoading) return;
@@ -70,6 +101,10 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
     setIsLoading(true);
     onMessageSent?.();
 
+    // Start progress simulation as workaround for ALB streaming issues
+    setProgressMessage('Analyzing your request...');
+    const progressInterval = simulateProgress(inputMessage);
+
     try {
       setStreamingResponse('');
       const response = await missionAPI.sendChatMessage(
@@ -77,10 +112,17 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
         inputMessage, 
         threadId,
         (progress) => {
+          // Clear simulated progress when real streaming works
+          clearInterval(progressInterval);
           setProgressMessage('Generating response...');
           setStreamingResponse(progress);
+          // Scroll to bottom when new content arrives
+          setTimeout(scrollToBottom, 100);
         }
       );
+      
+      // Clear progress simulation
+      clearInterval(progressInterval);
       
       // Always update threadId from response to maintain conversation
       if (response.sessionId) {
@@ -118,6 +160,8 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
       }));
     } catch (error) {
       console.error('Failed to send message:', error);
+      // Clear progress simulation on error
+      clearInterval(progressInterval);
       const errorMessage = {
         id: (Date.now() + 1).toString(),
         text: 'Sorry, I encountered an error. Please try again.',
@@ -128,6 +172,8 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
     } finally {
       setIsLoading(false);
       setProgressMessage('');
+      setProgressSteps([]);
+      setCurrentStep(0);
     }
   };
 
@@ -233,7 +279,7 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
             </Group>
           ))}
           
-          {isLoading && (
+          {(isLoading || streamingResponse) && (
             <Group justify="flex-start">
               <Paper 
                 p="md" 
@@ -256,23 +302,60 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ missionId, initialMessage, onMe
                       padding: '2px 4px',
                       borderRadius: '4px',
                       fontSize: '0.85em'
+                    },
+                    '& pre': {
+                      background: 'rgba(0,0,0,0.05)',
+                      padding: '0.75rem',
+                      borderRadius: '8px',
+                      overflow: 'auto',
+                      marginBottom: '0.5rem'
                     }
                   }}>
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {streamingResponse}
                     </ReactMarkdown>
-                    <Group gap="xs" mt="xs">
-                      <Loader size="xs" color="blue" />
-                      <Text size="xs" c="dimmed">Generating...</Text>
-                    </Group>
+                    {isLoading && (
+                      <Group gap="xs" mt="xs">
+                        <Loader size="xs" color="blue" />
+                        <Text size="xs" c="dimmed">Generating...</Text>
+                      </Group>
+                    )}
                   </Box>
                 ) : (
-                  <Group gap="xs">
-                    <Loader size="sm" color="blue" />
-                    <Text size="sm" c="dimmed">
-                      {progressMessage || 'Analyzing your request...'}
-                    </Text>
-                  </Group>
+                  <Stack gap="xs">
+                    <Group gap="xs">
+                      <Loader size="sm" color="blue" />
+                      <Text size="sm" c="dimmed">
+                        {progressMessage || 'Analyzing your request...'}
+                      </Text>
+                    </Group>
+                    {progressSteps.length > 0 && (
+                      <Stack gap={4}>
+                        <Stack gap={2}>
+                          {progressSteps.map((step, index) => (
+                            <Group key={index} gap="xs">
+                              <Box
+                                w={8}
+                                h={8}
+                                style={{
+                                  borderRadius: '50%',
+                                  backgroundColor: index <= currentStep ? '#4c6ef5' : '#e9ecef',
+                                  transition: 'background-color 0.3s ease'
+                                }}
+                              />
+                              <Text 
+                                size="xs" 
+                                c={index <= currentStep ? 'dark.7' : 'dimmed'}
+                                fw={index === currentStep ? 600 : 400}
+                              >
+                                {step}
+                              </Text>
+                            </Group>
+                          ))}
+                        </Stack>
+                      </Stack>
+                    )}
+                  </Stack>
                 )}
               </Paper>
             </Group>

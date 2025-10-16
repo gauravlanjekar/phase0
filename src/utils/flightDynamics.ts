@@ -14,6 +14,13 @@ export interface GroundTrackPoint {
   time: number; // seconds from epoch
 }
 
+// Extended results for constellation analysis
+export interface ConstellationResults extends FlightDynamicsResults {
+  numSpacecraft: number;
+  totalDataRate: number;
+  constellationCoverage: number;
+}
+
 export const calculateGroundTrack = (
   altitude: number, // km
   inclination: number, // degrees
@@ -89,21 +96,25 @@ export const calculateCurrentSatellitePosition = (
 };
 
 export const calculateFlightDynamics = (solution: DesignSolution): FlightDynamicsResults | null => {
-  if (!solution.orbit) return null;
+  if (!solution.orbit || !solution.spacecraft?.length) return null;
 
   const { altitude, inclination, eccentricity } = solution.orbit;
+  const numSpacecraft = solution.spacecraft.length;
   
-  // Get swath width from payload components
-  const payloadComponent = solution.spacecraft?.[0]?.components
-    ?.find(c => c.type === 'payload') as any;
-  const swathWidth = payloadComponent?.swathWidth || 100;
+  // Get average swath width from all payload components
+  const swathWidths = solution.spacecraft.map(sc => {
+    const payloadComponent = sc.components?.find(c => c.type === 'payload') as any;
+    return payloadComponent?.swathWidth || 100;
+  });
+  const avgSwathWidth = swathWidths.reduce((sum, w) => sum + w, 0) / swathWidths.length;
   
-  // Get data rate from communications components  
-  const commsComponent = solution.spacecraft?.[0]?.components
-    ?.find(c => c.type === 'communications') as any;
-  const dataRate = commsComponent?.dataRate || 100;
+  // Get total data rate from all communications components
+  const totalDataRate = solution.spacecraft.reduce((total, sc) => {
+    const commsComponent = sc.components?.find(c => c.type === 'communications') as any;
+    return total + (commsComponent?.dataRate || 100);
+  }, 0);
 
-  // Calculate orbital period
+  // Calculate orbital period (same for all satellites)
   const semiMajorAxis = EARTH_RADIUS + altitude;
   const orbitalPeriod = 2 * Math.PI * Math.sqrt(Math.pow(semiMajorAxis, 3) / EARTH_MU) / 60; // minutes
 
@@ -120,40 +131,127 @@ export const calculateFlightDynamics = (solution: DesignSolution): FlightDynamic
   const synodic = 1 / (1/orbitalPeriod - 1/earthRotationPeriod);
   const groundTrackRepeatCycle = Math.abs(synodic) / (24 * 60); // days
 
-  // Calculate revisit time
+  // Calculate constellation revisit time (improved with multiple satellites)
+  // More realistic revisit calculation based on ground track separation
   const groundTrackSeparation = 360 * (orbitalPeriod / (24 * 60)) * Math.cos(inclination * Math.PI / 180);
-  const orbitsForCoverage = Math.ceil(360 / (swathWidth / 111));
-  const revisitTime = (orbitsForCoverage * orbitalPeriod) / 60; // hours
+  const swathCoverageKm = avgSwathWidth;
+  const swathCoverageDegrees = swathCoverageKm / 111; // Rough conversion km to degrees
+  
+  // Number of orbits needed to cover the gap between ground tracks
+  const orbitsForCoverage = Math.max(1, Math.ceil(groundTrackSeparation / swathCoverageDegrees));
+  const singleSatRevisitTime = (orbitsForCoverage * orbitalPeriod) / 60; // hours
+  
+  // Improved constellation revisit calculation
+  let constellationRevisitTime;
+  if (numSpacecraft === 1) {
+    constellationRevisitTime = singleSatRevisitTime;
+  } else {
+    // Calculate optimal phasing for constellation
+    const phasingSeparation = 360 / numSpacecraft; // degrees between satellites
+    const timeBetweenSats = (phasingSeparation / 360) * orbitalPeriod / 60; // hours
+    
+    // If swath can cover the gap between ground tracks, revisit improves significantly
+    if (swathCoverageDegrees >= groundTrackSeparation / numSpacecraft) {
+      // Optimal case: complete coverage with proper phasing
+      constellationRevisitTime = Math.max(0.1, timeBetweenSats);
+    } else {
+      // Partial improvement based on coverage ratio
+      const coverageRatio = (swathCoverageDegrees * numSpacecraft) / groundTrackSeparation;
+      const improvementFactor = Math.min(numSpacecraft, 1 + (numSpacecraft - 1) * coverageRatio);
+      constellationRevisitTime = Math.max(0.1, singleSatRevisitTime / improvementFactor);
+    }
+  }
 
   // Calculate max latitude coverage
   const maxLatitudeCoverage = Math.min(inclination, 180 - inclination);
 
-  // Calculate ground station passes
+  // Calculate ground station passes (total for all satellites)
   const orbitsPerDay = (24 * 60) / orbitalPeriod;
   const visibilityFactor = Math.sin(Math.abs(45) * Math.PI / 180); // Assume mid-latitude
-  const groundStationPasses = Math.round(orbitsPerDay * visibilityFactor * 0.3);
+  const singleSatPasses = Math.round(orbitsPerDay * visibilityFactor * 0.3);
+  const totalGroundStationPasses = singleSatPasses * numSpacecraft;
 
-  // Calculate sun-synchronous inclination
-  const n = Math.sqrt(EARTH_MU / Math.pow(semiMajorAxis, 3));
-  const requiredPrecession = 360 / 365.25 * Math.PI / 180 / (24 * 3600);
-  const cosInc = -2 * requiredPrecession / (3 * n * EARTH_J2 * Math.pow(EARTH_RADIUS / semiMajorAxis, 2));
-  const sunSynchronousInclination = Math.acos(Math.max(-1, Math.min(1, cosInc))) * 180 / Math.PI;
-  const isSunSynchronous = Math.abs(inclination - sunSynchronousInclination) < 1;
-
-  // Calculate data downlink opportunity
+  // Calculate data downlink opportunity (total for constellation)
   const passDuration = 2 * Math.sqrt(Math.pow(semiMajorAxis, 2) - Math.pow(EARTH_RADIUS, 2)) / orbitalVelocity / 60;
-  const dataDownlinkOpportunity = Math.min(groundStationPasses * passDuration, 1000 / dataRate);
+  const totalDownlinkTime = totalGroundStationPasses * passDuration;
+  const dataDownlinkOpportunity = Math.min(totalDownlinkTime, 1000 / (totalDataRate / numSpacecraft));
 
   return {
     orbitalPeriod,
     orbitalVelocity,
     groundTrackRepeatCycle,
-    revisitTime,
-    swathCoverage: swathWidth,
+    revisitTime: constellationRevisitTime,
+    swathCoverage: avgSwathWidth,
     maxLatitudeCoverage,
     eclipseDuration,
     sunlightDuration,
-    groundStationPasses,
+    groundStationPasses: totalGroundStationPasses,
     dataDownlinkOpportunity
+  };
+};
+
+// Debug function to check calculations
+export const debugFlightDynamics = (solution: DesignSolution) => {
+  if (!solution.orbit) return;
+  
+  const { altitude, inclination } = solution.orbit;
+  const numSpacecraft = solution.spacecraft.length;
+  const semiMajorAxis = EARTH_RADIUS + altitude;
+  const orbitalPeriod = 2 * Math.PI * Math.sqrt(Math.pow(semiMajorAxis, 3) / EARTH_MU) / 60;
+  
+  const swathWidths = solution.spacecraft.map(sc => {
+    const payloadComponent = sc.components?.find(c => c.type === 'payload') as any;
+    return payloadComponent?.swathWidth || 100;
+  });
+  const avgSwathWidth = swathWidths.reduce((sum, w) => sum + w, 0) / swathWidths.length;
+  
+  const groundTrackSeparation = 360 * (orbitalPeriod / (24 * 60)) * Math.cos(inclination * Math.PI / 180);
+  const swathCoverageDegrees = avgSwathWidth / 111;
+  const orbitsForCoverage = Math.max(1, Math.ceil(groundTrackSeparation / swathCoverageDegrees));
+  const singleSatRevisitTime = (orbitsForCoverage * orbitalPeriod) / 60;
+  
+  // Improved constellation revisit calculation
+  let constellationRevisitTime;
+  if (numSpacecraft === 1) {
+    constellationRevisitTime = singleSatRevisitTime;
+  } else {
+    const phasingSeparation = 360 / numSpacecraft;
+    const timeBetweenSats = (phasingSeparation / 360) * orbitalPeriod / 60;
+    
+    if (swathCoverageDegrees >= groundTrackSeparation / numSpacecraft) {
+      constellationRevisitTime = Math.max(0.1, timeBetweenSats);
+    } else {
+      const coverageRatio = (swathCoverageDegrees * numSpacecraft) / groundTrackSeparation;
+      const improvementFactor = Math.min(numSpacecraft, 1 + (numSpacecraft - 1) * coverageRatio);
+      constellationRevisitTime = Math.max(0.1, singleSatRevisitTime / improvementFactor);
+    }
+  }
+  
+  const phasingSeparation = numSpacecraft > 1 ? 360 / numSpacecraft : 0;
+  const timeBetweenSats = numSpacecraft > 1 ? (phasingSeparation / 360) * orbitalPeriod / 60 : 0;
+  const coverageRatio = numSpacecraft > 1 ? (swathCoverageDegrees * numSpacecraft) / groundTrackSeparation : 0;
+  
+  console.log('Flight Dynamics Debug:', {
+    altitude,
+    inclination,
+    numSpacecraft,
+    orbitalPeriod: orbitalPeriod.toFixed(1) + ' min',
+    avgSwathWidth: avgSwathWidth.toFixed(1) + ' km',
+    groundTrackSeparation: groundTrackSeparation.toFixed(1) + '°',
+    swathCoverageDegrees: swathCoverageDegrees.toFixed(1) + '°',
+    phasingSeparation: phasingSeparation.toFixed(1) + '°',
+    timeBetweenSats: timeBetweenSats.toFixed(2) + ' hrs',
+    coverageRatio: coverageRatio.toFixed(2),
+    orbitsForCoverage,
+    singleSatRevisitTime: singleSatRevisitTime.toFixed(1) + ' hrs',
+    constellationRevisitTime: constellationRevisitTime.toFixed(1) + ' hrs'
+  });
+  
+  return {
+    singleSatRevisitTime,
+    constellationRevisitTime,
+    phasingSeparation: numSpacecraft > 1 ? 360 / numSpacecraft : 0,
+    timeBetweenSats: numSpacecraft > 1 ? (360 / numSpacecraft / 360) * orbitalPeriod / 60 : 0,
+    coverageRatio: numSpacecraft > 1 ? (swathCoverageDegrees * numSpacecraft) / groundTrackSeparation : 0
   };
 };

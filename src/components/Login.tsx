@@ -76,10 +76,10 @@ const Login: React.FC = () => {
             <Box style={{ textAlign: 'center' }}>
               <IconRocket size={48} color="#667eea" />
               <Title order={1} mt="md" c="white" size="2rem">
-                Mission Admin
+                Phase0
               </Title>
               <Title order={3} c="dimmed" fw={400} mt="xs">
-                Space Mission Design Platform
+                AI-Powered Mission Planning
               </Title>
             </Box>
             

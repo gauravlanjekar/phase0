@@ -136,6 +136,16 @@ Resources:
       Handler: missions.handler
       Runtime: nodejs18.x
       Timeout: 900
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowCredentials: false
+          AllowHeaders:
+            - "*"
+          AllowMethods:
+            - "*"
+          AllowOrigins:
+            - "*"
       Environment:
         Variables:
           MISSIONS_TABLE: !Ref MissionsTable

@@ -31,6 +31,7 @@ const DesignSolutionsTab: React.FC<DesignSolutionsTabProps> = ({
   const [editingOrbit, setEditingOrbit] = useState<{ orbit: Orbit; solutionId: string } | null>(null);
   const [editingGroundStation, setEditingGroundStation] = useState<{ station: GroundStation; solutionId: string } | null>(null);
   const [validationReports, setValidationReports] = useState<Record<string, ValidationReport[]>>({});
+  const [expandedValidationReports, setExpandedValidationReports] = useState<Set<string>>(new Set());
 
 
   const toggleExpanded = (solutionId: string) => {
@@ -381,47 +382,65 @@ Use get_solutions_schema and save_solutions tools.`;
                           {validationReports[solution.id].filter(r => r.status === 'PASS').length}/{validationReports[solution.id].length} PASS
                         </Badge>
                       </Group>
+                      <ActionIcon 
+                        variant="subtle" 
+                        onClick={() => {
+                          const newExpanded = new Set(expandedValidationReports);
+                          if (newExpanded.has(solution.id)) {
+                            newExpanded.delete(solution.id);
+                          } else {
+                            newExpanded.add(solution.id);
+                          }
+                          setExpandedValidationReports(newExpanded);
+                        }}
+                        size="sm"
+                        c="white"
+                      >
+                        {expandedValidationReports.has(solution.id) ? <IconChevronUp size={16} /> : <IconChevronDown size={16} />}
+                      </ActionIcon>
                     </Group>
                     
-                    <Stack gap="md">
-                      {validationReports[solution.id].map((report) => {
-                        const requirement = requirements?.find(r => r.id === report.requirementId);
-                        return (
-                          <Card key={report.requirementId} className="glass-card-dark" p="sm" radius="md">
-                            <Stack gap="xs">
-                              <Group justify="space-between" align="center">
-                                <Group align="center" gap="sm">
-                                  {getValidationIcon(report.status)}
-                                  <Text size="sm" fw={500} c="white">
-                                    {requirement?.title || `Requirement ${report.requirementId}`}
-                                  </Text>
-                                </Group>
-                                <Badge color={getValidationColor(report.status)} size="xs">
-                                  {report.status}
-                                </Badge>
-                              </Group>
-                              <Text size="xs" c="rgba(255,255,255,0.8)">
-                                {report.explanation}
-                              </Text>
-                              {(report.actualValue || report.requiredValue) && (
-                                <Group gap="md">
-                                  {report.requiredValue && (
-                                    <Text size="xs" c="dimmed">
-                                      Required: <Text span c="white">{report.requiredValue}</Text>
+                    <Collapse in={expandedValidationReports.has(solution.id)}>
+                      <Stack gap="md">
+                        {validationReports[solution.id].map((report) => {
+                          const requirement = requirements?.find(r => r.id === report.requirementId);
+                          return (
+                            <Card key={report.requirementId} className="glass-card-dark" p="sm" radius="md">
+                              <Stack gap="xs">
+                                <Group justify="space-between" align="center">
+                                  <Group align="center" gap="sm">
+                                    {getValidationIcon(report.status)}
+                                    <Text size="sm" fw={500} c="white">
+                                      {requirement?.title || `Requirement ${report.requirementId}`}
                                     </Text>
-                                  )}
-                                  {report.actualValue && (
-                                    <Text size="xs" c="dimmed">
-                                      Actual: <Text span c={report.status === 'PASS' ? 'green' : 'red'}>{report.actualValue}</Text>
-                                    </Text>
-                                  )}
+                                  </Group>
+                                  <Badge color={getValidationColor(report.status)} size="xs">
+                                    {report.status}
+                                  </Badge>
                                 </Group>
-                              )}
-                            </Stack>
-                          </Card>
-                        );
-                      })}
-                    </Stack>
+                                <Text size="xs" c="rgba(255,255,255,0.8)">
+                                  {report.explanation}
+                                </Text>
+                                {(report.actualValue || report.requiredValue) && (
+                                  <Group gap="md">
+                                    {report.requiredValue && (
+                                      <Text size="xs" c="dimmed">
+                                        Required: <Text span c="white">{report.requiredValue}</Text>
+                                      </Text>
+                                    )}
+                                    {report.actualValue && (
+                                      <Text size="xs" c="dimmed">
+                                        Actual: <Text span c={report.status === 'PASS' ? 'green' : 'red'}>{report.actualValue}</Text>
+                                      </Text>
+                                    )}
+                                  </Group>
+                                )}
+                              </Stack>
+                            </Card>
+                          );
+                        })}
+                      </Stack>
+                    </Collapse>
                   </Card>
                 )}
 

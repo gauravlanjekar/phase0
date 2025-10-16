@@ -252,7 +252,32 @@ export class FlightDynamicsCalculator {
     groundStations: Array<{latitude: number, maxDataRate: number}> = [{latitude: 45, maxDataRate: 100}]
   ): ConstellationResults {
     const singleSatRevisit = this.calculateRevisitTime(orbit.altitude, orbit.inclination, swathWidth);
-    const constellationRevisitTime = singleSatRevisit / numSpacecraft;
+    
+    // More realistic constellation revisit calculation
+    const orbitalPeriod = this.calculateOrbitalPeriod(orbit.altitude);
+    const groundTrackSeparation = this.calculateGroundTrackSeparation(orbit.altitude, orbit.inclination);
+    const swathCoverageDegrees = swathWidth / 111; // km to degrees conversion
+    
+    // Calculate optimal phasing for constellation
+    let constellationRevisitTime;
+    if (numSpacecraft === 1) {
+      constellationRevisitTime = singleSatRevisit;
+    } else {
+      // For multiple satellites, consider orbital phasing and ground track distribution
+      const phasingSeparation = 360 / numSpacecraft; // degrees between satellites
+      const timeBetweenSats = (phasingSeparation / 360) * orbitalPeriod / 60; // hours
+      
+      // If swath can cover the gap between ground tracks, revisit improves significantly
+      if (swathCoverageDegrees >= groundTrackSeparation / numSpacecraft) {
+        // Optimal case: complete coverage with proper phasing
+        constellationRevisitTime = Math.max(0.1, timeBetweenSats);
+      } else {
+        // Partial improvement based on coverage ratio
+        const coverageRatio = (swathCoverageDegrees * numSpacecraft) / groundTrackSeparation;
+        const improvementFactor = Math.min(numSpacecraft, 1 + (numSpacecraft - 1) * coverageRatio);
+        constellationRevisitTime = Math.max(0.1, singleSatRevisit / improvementFactor);
+      }
+    }
     
     const globalCoverageTime = Math.max(1, 24 / numSpacecraft);
     
