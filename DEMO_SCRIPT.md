@@ -10,9 +10,11 @@
 
 *"Today we'll demonstrate Phase0 - an AI-powered platform that transforms satellite mission planning from weeks of manual work into minutes of intelligent automation."*
 
+**Show:** First 3 slides of presentation -- giving background on Space Mission Design & how AI will impact it.  (Maybe skip last slide)
+
 **Show:** Dashboard with existing missions
 
-*"Traditional mission planning involves complex orbital mechanics, component selection, and requirement validation. Our app uses AWS serverless architecture with an AI agent to automate this entire process."*
+*"Our app guides the user through the Space Mission Design process, using AWS serverless architecture with an AI agent to automate the process of defining objectives, requirements and constraints, and then proposing solutions that meet the objectives, within the constraints defined."*
 
 ---
 
@@ -82,6 +84,8 @@
 ## **Technical Architecture & Closing (25 seconds) - Person A**
 
 *"The entire system runs on AWS serverless architecture:"*
+
+**Show:** Architecture SVG
 
 **Quick mention:**
 - *"Cognito for authentication"*
