@@ -2,6 +2,44 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v4';
 import axios from 'axios';
 
+/*
+ * TOOL USAGE INSTRUCTIONS
+ * 
+ * EFFICIENT TOOL USAGE PATTERNS:
+ * 
+ * 1. ALWAYS start with get_mission_data to understand current state
+ * 2. Use schema tools (get_*_schema) before generating new content
+ * 3. For single edits: update_objective/requirement/constraint
+ * 4. For bulk operations: save_* or save_multiple_*
+ * 5. Validate solutions after creation with save_validation_reports
+ * 
+ * COMMON WORKFLOWS:
+ * 
+ * Generate Mission Elements:
+ * get_mission_data → get_objectives_schema → save_objectives → 
+ * get_requirements_schema → save_requirements → get_constraints_schema → 
+ * save_constraints → get_solutions_schema → save_solutions → save_validation_reports
+ * 
+ * Modify Single Entity:
+ * get_mission_data → update_objective/requirement/constraint
+ * 
+ * Add Components:
+ * get_mission_data → add_component → flight_dynamics (recalculate)
+ * 
+ * Update Orbit:
+ * get_mission_data → update_orbit → flight_dynamics (recalculate)
+ * 
+ * Research Components:
+ * search_internet → add_component/update_component
+ * 
+ * IMPORTANT NOTES:
+ * - Always preserve existing data when making updates
+ * - Use flight_dynamics after orbit/component changes
+ * - Include missionId in all data modification calls
+ * - Validation reports are solution-specific (use solutionId)
+ * - Internet search for current component specifications
+ */
+
 
 // Import schemas from generator
 let ObjectiveSchema: any;
@@ -121,7 +159,7 @@ export const getMissionDataTool = tool(
   },
   {
     name: 'get_mission_data',
-    description: 'Get current mission data including objectives, requirements, constraints, and design solutions',
+    description: 'ALWAYS use this FIRST to understand current mission state. Returns all objectives, requirements, constraints, and design solutions. Use before any modifications to avoid data loss.',
     schema: z.object({ missionId: z.string() })
   }
 );
@@ -160,7 +198,7 @@ export const saveObjectives = tool(
   },
   {
     name: 'save_objectives',
-    description: 'Save generated objectives to the mission',
+    description: 'DATA: REPLACES ALL existing objectives with new array. Use get_objectives_schema first. For adding to existing, use save_multiple_objectives. For single edits, use update_objective.',
     schema: z.object({ missionId: z.string(), objectives: z.array(ObjectiveSchema) })
   }
 );
@@ -201,7 +239,7 @@ export const saveRequirements = tool(
   },
   {
     name: 'save_requirements',
-    description: 'Save generated requirements to the mission',
+    description: 'DATA: REPLACES ALL existing requirements. For adding to existing, use save_multiple_requirements. For single edits, use update_requirement.',
     schema: z.object({ missionId: z.string(), requirements: z.array(RequirementSchema) })
   }
 );
@@ -246,7 +284,7 @@ export const saveConstraints = tool(
   },
   {
     name: 'save_constraints',
-    description: 'Save generated constraints to the mission',
+    description: 'DATA: REPLACES ALL existing constraints. For adding to existing, use save_multiple_constraints. For single edits, use update_constraint.',
     schema: z.object({ missionId: z.string(), constraints: z.array(ConstraintSchema) })
   }
 );
@@ -553,8 +591,69 @@ export const saveSolutions = tool(
   },
   {
     name: 'save_solutions',
-    description: 'Save generated design solutions to the mission',
+    description: 'DATA: REPLACES ALL existing design solutions. For adding to existing, use save_multiple_solutions. For component edits, use update_component.',
     schema: z.object({ missionId: z.string(), designSolutions: z.array(DesignSolutionSchema) })
+  }
+);
+
+// Single entity modification tools
+export const updateObjective = tool(
+  async ({ missionId, objectiveId, updates }: { missionId: string; objectiveId: string; updates: Record<string, any> }) => {
+    const data = await coreFunctions.getMissionData(missionId);
+    const updatedObjectives = data.objectives.map((obj: any) => 
+      obj.id === objectiveId ? { ...obj, ...updates } : obj
+    );
+    await coreFunctions.saveData(missionId, 0, { objectives: updatedObjectives });
+    return `Updated objective ${objectiveId} in mission ${missionId}.`;
+  },
+  {
+    name: 'update_objective',
+    description: 'Update single objective. Use get_mission_data first to find objectiveId. Updates can include: title, description, priority, category, stakeholders, notes.',
+    schema: z.object({ 
+      missionId: z.string(), 
+      objectiveId: z.string(), 
+      updates: z.record(z.string(), z.any()) 
+    })
+  }
+);
+
+export const updateRequirement = tool(
+  async ({ missionId, requirementId, updates }: { missionId: string; requirementId: string; updates: Record<string, any> }) => {
+    const data = await coreFunctions.getMissionData(missionId);
+    const updatedRequirements = data.requirements.map((req: any) => 
+      req.id === requirementId ? { ...req, ...updates } : req
+    );
+    await coreFunctions.saveData(missionId, 1, { requirements: updatedRequirements });
+    return `Updated requirement ${requirementId} in mission ${missionId}.`;
+  },
+  {
+    name: 'update_requirement',
+    description: 'Update a single requirement by ID',
+    schema: z.object({ 
+      missionId: z.string(), 
+      requirementId: z.string(), 
+      updates: z.record(z.string(), z.any()) 
+    })
+  }
+);
+
+export const updateConstraint = tool(
+  async ({ missionId, constraintId, updates }: { missionId: string; constraintId: string; updates: Record<string, any> }) => {
+    const data = await coreFunctions.getMissionData(missionId);
+    const updatedConstraints = data.constraints.map((con: any) => 
+      con.id === constraintId ? { ...con, ...updates } : con
+    );
+    await coreFunctions.saveData(missionId, 2, { constraints: updatedConstraints });
+    return `Updated constraint ${constraintId} in mission ${missionId}.`;
+  },
+  {
+    name: 'update_constraint',
+    description: 'Update a single constraint by ID',
+    schema: z.object({ 
+      missionId: z.string(), 
+      constraintId: z.string(), 
+      updates: z.record(z.string(), z.any()) 
+    })
   }
 );
 
@@ -568,7 +667,7 @@ export const saveMultipleObjectives = tool(
   },
   {
     name: 'save_multiple_objectives',
-    description: 'Add multiple new objectives to existing ones',
+    description: 'DATA: APPENDS new objectives to existing ones. Preserves all current objectives and adds new ones to the end.',
     schema: z.object({ missionId: z.string(), objectives: z.array(ObjectiveSchema) })
   }
 );
@@ -583,7 +682,7 @@ export const saveMultipleRequirements = tool(
   },
   {
     name: 'save_multiple_requirements',
-    description: 'Add multiple new requirements to existing ones',
+    description: 'DATA: APPENDS new requirements to existing ones. Preserves all current requirements and adds new ones.',
     schema: z.object({ missionId: z.string(), requirements: z.array(RequirementSchema) })
   }
 );
@@ -597,7 +696,7 @@ export const saveMultipleConstraints = tool(
   },
   {
     name: 'save_multiple_constraints',
-    description: 'Add multiple new constraints to existing ones',
+    description: 'DATA: APPENDS new constraints to existing ones. Preserves all current constraints and adds new ones.',
     schema: z.object({ missionId: z.string(), constraints: z.array(ConstraintSchema) })
   }
 );
@@ -611,7 +710,7 @@ export const saveMultipleSolutions = tool(
   },
   {
     name: 'save_multiple_solutions',
-    description: 'Add multiple new design solutions to existing ones',
+    description: 'DATA: APPENDS new design solutions to existing ones. Preserves all current solutions and adds new ones.',
     schema: z.object({ missionId: z.string(), designSolutions: z.array(DesignSolutionSchema) })
   }
 );
@@ -649,7 +748,7 @@ export const updateComponentTool = tool(
   },
   {
     name: 'update_component',
-    description: 'Update a specific component in a design solution',
+    description: 'DATA: MODIFIES only the specified component. Preserves all other components and solutions. Use get_mission_data to find IDs.',
     schema: z.object({ 
       missionId: z.string(), 
       solutionId: z.string(), 
@@ -690,7 +789,7 @@ export const addComponentTool = tool(
   },
   {
     name: 'add_component',
-    description: 'Add a new component to a spacecraft in a design solution',
+    description: 'DATA: ADDS new component to spacecraft. Preserves all existing components. Auto-generates component ID.',
     schema: z.object({ 
       missionId: z.string(), 
       solutionId: z.string(), 
@@ -730,7 +829,7 @@ export const removeComponentTool = tool(
   },
   {
     name: 'remove_component',
-    description: 'Remove a component from a spacecraft in a design solution',
+    description: 'DATA: DELETES specified component only. Preserves all other components and solutions. Permanent deletion.',
     schema: z.object({ 
       missionId: z.string(), 
       solutionId: z.string(), 
@@ -810,7 +909,7 @@ export const searchInternetTool = tool(
   },
   {
     name: 'search_internet',
-    description: 'Search the internet for current information about spacecraft, components, missions, groundstations or technical specifications',
+    description: 'Use for current component specs, mission examples, technical standards. Search before adding/updating components for accurate specifications.',
     schema: z.object({ query: z.string() })
   }
 );
@@ -940,7 +1039,7 @@ export const flightDynamicsTool = tool(
   },
   {
     name: 'flight_dynamics',
-    description: 'Calculate orbital mechanics parameters for single spacecraft or constellation including period, velocity, revisit time, coverage, and ground station analysis',
+    description: 'ALWAYS use after orbit/component changes. Calculates orbital mechanics, revisit times, coverage. Use constellation analysis (numSpacecraft>1) for multiple satellites.',
     schema: z.object({
       altitude: z.number().describe('Orbital altitude in km'),
       inclination: z.number().describe('Orbital inclination in degrees'),
@@ -963,12 +1062,15 @@ export const saveValidationReportsTool = tool(
     solutionId: string; 
     reports: Array<{ requirementId: string; status: string; explanation: string; actualValue?: string; requiredValue?: string }>
   }) => {
-    await coreFunctions.saveData(missionId, 4, { [`validation_${solutionId}`]: reports });
+    // Get existing validation data to avoid overwriting other solutions
+    const existingData = await coreFunctions.getData(missionId, 4) || {};
+    const updatedData = { ...existingData, [`validation_${solutionId}`]: reports };
+    await coreFunctions.saveData(missionId, 4, updatedData);
     return `Saved ${reports.length} validation reports for solution ${solutionId}.`;
   },
   {
     name: 'save_validation_reports',
-    description: 'Save validation reports for a design solution',
+    description: 'DATA: ADDS validation for specific solution. Preserves validation reports for other solutions. ALWAYS use after creating solutions.',
     schema: z.object({
       missionId: z.string(),
       solutionId: z.string(),
@@ -985,14 +1087,17 @@ export const allTools = [
 
   getObjectivesSchema,
   saveObjectives,
+  updateObjective,
   saveMultipleObjectives,
 
   getRequirementsSchema,
   saveRequirements,
+  updateRequirement,
   saveMultipleRequirements,
 
   getConstraintsSchema,
   saveConstraints,
+  updateConstraint,
   saveMultipleConstraints,
 
   getSolutionsSchema,
